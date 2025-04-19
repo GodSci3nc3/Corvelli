@@ -1,6 +1,8 @@
 
 # 🧠 Consola Inteligente para Redes
 
+<img src = "https://github.com/user-attachments/assets/60e6880d-f7db-42e6-a24f-099da8edc221" style = "width: 600px;">
+
 **Consola Inteligente para Redes** es una herramienta que transforma instrucciones en lenguaje natural en comandos reales para dispositivos de red, utilizando inteligencia artificial. Su interfaz de escritorio permite a cualquier usuario escribir lo que desea hacer —como "ver interfaces activas"— y recibir al instante el comando exacto a ejecutar, todo sin necesidad de conocimientos avanzados en redes.
 
 Este proyecto tiene como objetivo acelerar la administración de redes, servir como asistente de estudio para estudiantes de cisco, e incluso convertirse en una herramienta confiable para automatizar tareas técnicas en infraestructura.

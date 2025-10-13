@@ -221,28 +221,6 @@ AIConsole/
 │   └── package.json       # Node.js dependencies
 ├── docs/                  # Documentation and examples
 └── assets/               # Project resources and screenshots
-```
-
-## Development
-
-### Contributing Guidelines
-- Follow Python PEP 8 standards for frontend code
-- Use ESLint configuration for backend JavaScript
-- Test all command translations before submitting
-- Document new features and API endpoints
-
-### Local Development
-- Backend runs on `http://localhost:3000`
-- Frontend connects automatically to backend API
-- Hot reload available for backend development
-- Python virtual environment recommended for frontend
-
-### Testing
-- Manual testing with various network scenarios
-- Command accuracy validation against Cisco documentation
-- Cross-platform compatibility testing (Windows, macOS, Linux)
-- API endpoint testing for backend services
-
 ---
 
 <div align="center">

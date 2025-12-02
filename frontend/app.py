@@ -64,6 +64,7 @@ class NetworkConsole:
         self.connection_type = "SSH"
         self.history = []
         self.history_index = 0
+        self.ai_mode = False  # Modo AI desactivado por defecto (modo Putty)
         
         # Cargar iconos
         self.icons = self.load_icons()
@@ -205,20 +206,20 @@ class NetworkConsole:
             insertbackground=LIGHT_TEXT,
             selectbackground=ACCENT_COLOR,
             selectforeground=DARK_BG,
-            font=("Consolas", 10),
+            font=("Courier New", 11),
             wrap=tk.WORD,
             bd=0
         )
         self.terminal.pack(fill=tk.BOTH, expand=True)
         self.terminal.config(state=tk.DISABLED)
         
-        # Configuración de etiquetas de color
-        self.terminal.tag_configure("command", foreground=COMMAND_COLOR)
-        self.terminal.tag_configure("output", foreground=OUTPUT_COLOR)
-        self.terminal.tag_configure("error", foreground=ERROR_COLOR)
-        self.terminal.tag_configure("success", foreground=SUCCESS_COLOR)
-        self.terminal.tag_configure("system", foreground=ACCENT_COLOR)
-        self.terminal.tag_configure("highlight", foreground=HIGHLIGHT_COLOR)
+        # Configuración de etiquetas de color con tamaños aumentados
+        self.terminal.tag_configure("command", foreground=COMMAND_COLOR, font=("Courier New", 11, "bold"))
+        self.terminal.tag_configure("output", foreground=OUTPUT_COLOR, font=("Courier New", 10))
+        self.terminal.tag_configure("error", foreground=ERROR_COLOR, font=("Courier New", 11, "bold"))
+        self.terminal.tag_configure("success", foreground=SUCCESS_COLOR, font=("Courier New", 11, "bold"))
+        self.terminal.tag_configure("system", foreground=ACCENT_COLOR, font=("Courier New", 10))
+        self.terminal.tag_configure("highlight", foreground=HIGHLIGHT_COLOR, font=("Courier New", 11, "bold"))
     
     def create_command_input(self):
         input_frame = tk.Frame(self.bottom_frame, bg=DARK_BG)
@@ -226,7 +227,7 @@ class NetworkConsole:
         
         # Etiqueta para mostrar el prompt
         self.prompt_label = tk.Label(input_frame, text=f"{self.device_name}# ", 
-                                      bg=DARK_BG, fg=ACCENT_COLOR, font=("Consolas", 10))
+                                      bg=DARK_BG, fg=ACCENT_COLOR, font=("Courier New", 10))
         self.prompt_label.pack(side=tk.LEFT)
         
         # Entrada de comandos
@@ -235,7 +236,7 @@ class NetworkConsole:
             bg=TERMINAL_BG,
             fg=LIGHT_TEXT,
             insertbackground=LIGHT_TEXT,
-            font=("Consolas", 10),
+            font=("Courier New", 10),
             bd=0,
             highlightthickness=1,
             highlightbackground=BORDER_COLOR,
@@ -243,6 +244,21 @@ class NetworkConsole:
         )
         self.command_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
         self.command_entry.focus()
+        
+        # Botón para activar/desactivar modo AI
+        self.ai_toggle_button = tk.Button(
+            input_frame,
+            text="🤖 AI: OFF",
+            command=self.toggle_ai_mode,
+            bg=BORDER_COLOR,
+            fg=LIGHT_TEXT,
+            activebackground=ACCENT_COLOR,
+            bd=0,
+            padx=15,
+            font=("Segoe UI", 9, "bold"),
+            relief=tk.FLAT
+        )
+        self.ai_toggle_button.pack(side=tk.RIGHT, padx=5)
         
         # Botón de envío
         self.send_button = tk.Button(
@@ -259,7 +275,7 @@ class NetworkConsole:
         self.send_button.pack(side=tk.RIGHT)
         
         # Tooltip para el comando
-        ToolTip(self.command_entry, "Ingresa un comando en lenguaje natural para convertirlo a comandos Cisco")
+        self.update_command_tooltip()
     
     def create_status_bar(self):
         status_frame = tk.Frame(self.root, bg=BORDER_COLOR, height=22)
@@ -274,13 +290,10 @@ class NetworkConsole:
         self.command_count.pack(side=tk.RIGHT)
     
     def display_welcome_message(self):
-        welcome_message = """¡Bienvenido a la Consola Inteligente para Redes!
-
-Esta herramienta te permite interactuar con dispositivos de red usando lenguaje natural.
-Ingresa instrucciones como "configurar una VLAN para el departamento de finanzas" y la IA
-generará los comandos Cisco correspondientes.
-
-Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte superior.
+        welcome_message = """
+========================================================================
+              AIConsole - Control Inteligente de Switches
+========================================================================
 """
         self.update_terminal(welcome_message, "system")
     
@@ -294,6 +307,40 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
         
         # Ctrl+L para limpiar la pantalla
         self.root.bind("<Control-l>", lambda event: self.clear_terminal())
+    
+    def toggle_ai_mode(self):
+        """Activar/desactivar modo AI"""
+        self.ai_mode = not self.ai_mode
+        
+        if self.ai_mode:
+            self.ai_toggle_button.config(
+                text="🤖 AI: ON",
+                bg=SUCCESS_COLOR,
+                fg=DARK_BG
+            )
+        else:
+            self.ai_toggle_button.config(
+                text="🤖 AI: OFF",
+                bg=BORDER_COLOR,
+                fg=LIGHT_TEXT
+            )
+        
+        self.update_command_tooltip()
+    
+    def update_command_tooltip(self):
+        """Actualizar tooltip según el modo activo"""
+        if self.ai_mode:
+            tooltip_text = "Modo AI: Ingresa comandos en lenguaje natural (español o inglés)"
+        else:
+            tooltip_text = "Modo Putty: Ingresa comandos Cisco directos (ej: show version)"
+        
+        # Remover tooltip anterior si existe
+        if hasattr(self, 'command_tooltip'):
+            self.command_tooltip.widget.unbind("<Enter>")
+            self.command_tooltip.widget.unbind("<Leave>")
+        
+        # Crear nuevo tooltip
+        self.command_tooltip = ToolTip(self.command_entry, tooltip_text)
     
     def update_terminal(self, text, tag=None):
         self.terminal.config(state=tk.NORMAL)
@@ -335,10 +382,21 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
     
     def process_command(self, command):
         try:
-            response = requests.post('http://localhost:3000/comando', json={"mensaje": command}, timeout=10)
+            # Determinar el endpoint según el modo
+            if self.ai_mode:
+                # Modo AI: usar endpoint con IA
+                response = requests.post('http://localhost:3000/comando', json={
+                    "mensaje": command, 
+                    "execute": True
+                }, timeout=60)  # Increased timeout for AI processing
+            else:
+                # Modo Putty: enviar comando directo sin IA
+                response = requests.post('http://localhost:3000/execute', json={
+                    "commands": command
+                }, timeout=60)
             
             if response.status_code == 200:
-                result = response.json().get('respuesta', 'Sin respuesta')
+                result = response.json()
                 
                 # Detener animación de pensamiento
                 self.root.after_cancel(self.thinking_animation_id)
@@ -346,12 +404,94 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
                 self.terminal.delete("thinking_line.first", "thinking_line.last")
                 self.terminal.config(state=tk.DISABLED)
                 
-                # Formatear la respuesta
-                self.format_and_display_result(result)
+                # Modo AI: mostrar comandos generados
+                if self.ai_mode:
+                    generated_commands = result.get('respuesta', 'No commands generated')
+                    
+                    # Verificar si hubo error de rate limit en el resultado
+                    if result.get('error') and 'rate' in str(result.get('error')).lower():
+                        self.update_terminal("", "error")
+                        self.update_terminal("=" * 60, "error")
+                        self.update_terminal("⚠️  ERROR: LÍMITE DE VELOCIDAD ALCANZADO", "error")
+                        self.update_terminal("=" * 60, "error")
+                        self.update_terminal("El servicio de IA está temporalmente limitado.", "system")
+                        self.update_terminal("", "system")
+                        self.update_terminal("Opciones:", "system")
+                        self.update_terminal("1. Espera 1 minuto e intenta de nuevo", "system")
+                        self.update_terminal("2. Cambia a modo Putty (🤖 AI: OFF)", "system")
+                        self.update_terminal("3. Usa comandos Cisco directos", "system")
+                        self.update_terminal("", "system")
+                        return
+                    
+                    self.update_terminal("", "system")
+                    self.update_terminal("=" * 60, "system")
+                    self.update_terminal("COMANDOS GENERADOS:", "highlight")
+                    self.update_terminal("=" * 60, "system")
+                    self.update_terminal(generated_commands, "command")
+                    self.update_terminal("", "system")
+                
+                # Show execution results if available
+                if result.get('executed', False) or result.get('success', False):
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal("RESULTADOS DE EJECUCIÓN:", "success")
+                    self.update_terminal("=" * 60, "success")
+                    
+                    # Para modo AI
+                    if 'device_responses' in result:
+                        device_responses = result.get('device_responses', [])
+                        
+                        for i, cmd_result in enumerate(device_responses, 1):
+                            cmd = cmd_result.get('command', '')
+                            response_text = cmd_result.get('response', '')
+                            
+                            self.update_terminal(f"\n[{i}] Comando ejecutado:", "system")
+                            self.update_terminal(f"    {cmd}", "command")
+                            
+                            if response_text:
+                                self.update_terminal(f"Respuesta del switch:", "system")
+                                for line in response_text.split('\\n'):
+                                    if line.strip():
+                                        self.update_terminal(f"    {line}", "output")
+                    
+                    # Para modo Putty directo
+                    elif 'results' in result:
+                        results = result.get('results', [])
+                        for i, cmd_result in enumerate(results, 1):
+                            cmd = cmd_result.get('command', '')
+                            response_text = cmd_result.get('response', '')
+                            
+                            if cmd:
+                                self.update_terminal(f"\n[{i}] {cmd}", "command")
+                            if response_text:
+                                for line in response_text.split('\\n'):
+                                    if line.strip():
+                                        self.update_terminal(f"    {line}", "output")
+                    
+                    self.update_terminal("=" * 60, "success")
+                    
+                else:
+                    # Error en la ejecución
+                    error = result.get('error', 'Unknown error')
+                    self.update_terminal("", "error")
+                    self.update_terminal("=" * 60, "error")
+                    self.update_terminal("ERROR EN LA EJECUCIÓN", "error")
+                    self.update_terminal("=" * 60, "error")
+                    self.update_terminal(error, "error")
+                    self.update_terminal("", "system")
+                    
+                    if self.ai_mode:
+                        self.update_terminal("Los comandos fueron generados pero no se ejecutaron.", "system")
+                    else:
+                        self.update_terminal("El comando no pudo ser ejecutado en el switch.", "system")
+                
+            elif response.status_code == 429:
+                # Rate limit específico del servidor
+                self.handle_rate_limit_error()
             else:
-                self.update_terminal(f"Error: Respuesta del servidor ({response.status_code})", "error")
+                self.update_terminal(f"Error: Server response ({response.status_code})", "error")
+                
         except requests.RequestException as e:
-            self.update_terminal(f"Error de conexión: {str(e)}", "error")
+            error_msg = str(e)
             
             # Detener animación de pensamiento si hay error
             try:
@@ -361,6 +501,36 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
                 self.terminal.config(state=tk.DISABLED)
             except:
                 pass
+            
+            # Verificar si es error de rate limit
+            if '429' in error_msg or 'rate' in error_msg.lower():
+                self.handle_rate_limit_error()
+            else:
+                self.update_terminal(f"Connection error: {error_msg}", "error")
+    
+    def handle_rate_limit_error(self):
+        """Manejar error de rate limit de forma informativa"""
+        self.update_terminal("", "error")
+        self.update_terminal("=" * 60, "error")
+        self.update_terminal("⚠️  LÍMITE DE VELOCIDAD ALCANZADO", "error")
+        self.update_terminal("=" * 60, "error")
+        self.update_terminal("", "system")
+        self.update_terminal("El servicio de IA está temporalmente limitado.", "system")
+        self.update_terminal("Esto sucede cuando se hacen muchas peticiones seguidas.", "system")
+        self.update_terminal("", "system")
+        self.update_terminal("SOLUCIONES:", "highlight")
+        self.update_terminal("", "system")
+        self.update_terminal("1️⃣  Espera 60 segundos e intenta de nuevo", "system")
+        self.update_terminal("", "system")
+        self.update_terminal("2️⃣  Cambia a MODO PUTTY (🤖 AI: OFF)", "success")
+        self.update_terminal("    - Envía comandos Cisco directos", "system")
+        self.update_terminal("    - Sin límites de velocidad", "system")
+        self.update_terminal("    - Ejemplo: show version", "system")
+        self.update_terminal("", "system")
+        self.update_terminal("3️⃣  Usa comandos básicos mientras esperas", "system")
+        self.update_terminal("", "system")
+        self.update_terminal("=" * 60, "error")
+        self.update_terminal("", "system")
     
     def format_and_display_result(self, result):
         self.terminal.config(state=tk.NORMAL)
@@ -432,27 +602,49 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
             self.connect_button.config(text="Conectar", bg=ACCENT_COLOR)
             self.status_indicator.itemconfig(1, fill=ERROR_COLOR)
             self.status_label.config(text="Desconectado")
-            self.update_terminal(f"Se ha cerrado la conexión con {self.device_name}.", "system")
+            self.update_terminal(f"Conexion cerrada.", "error")
         else:
-            # Simular proceso de conexión
-            self.update_terminal(f"Conectando a {self.device_name} vía {self.connection_type}...", "system")
+            # Intentar conexion REAL
+            self.update_terminal(f"Verificando conexion serial USB...", "system")
             self.root.update()
             
-            # Simular un pequeño retraso
-            time.sleep(random.uniform(0.5, 1.5))
-            
-            # Conectar (simular éxito siempre por ahora)
-            self.connected = True
-            self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
-            self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
-            self.status_label.config(text=f"Conectado a {self.device_name} vía {self.connection_type}")
-            
-            # Actualizar el prompt
-            self.device_name = self.device_name_var.get()
-            self.prompt_label.config(text=f"{self.device_name}# ")
-            
-            # Mostrar mensaje de bienvenida del dispositivo
-            self.simulate_device_welcome()
+            try:
+                response = requests.get('http://localhost:3000/connection-status', timeout=10)
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    if result.get('connected'):
+                        # Conexion exitosa
+                        self.connected = True
+                        self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
+                        self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
+                        self.status_label.config(text="Conectado via USB Serial (/dev/ttyUSB0)")
+                        
+                        self.update_terminal("", "system")
+                        self.update_terminal("=" * 60, "success")
+                        self.update_terminal("CONEXION ESTABLECIDA CON SWITCH", "success")
+                        self.update_terminal("=" * 60, "success")
+                        self.update_terminal(f"Puerto: /dev/ttyUSB0", "system")
+                        self.update_terminal(f"Baudrate: 9600", "system")
+                        self.update_terminal(f"Estado: Autenticado", "success")
+                        self.update_terminal("=" * 60, "success")
+                        self.update_terminal("", "system")
+                    else:
+                        # Conexion fallida
+                        self.connected = False
+                        self.update_terminal("", "system")
+                        self.update_terminal("ERROR: No se pudo conectar al switch", "error")
+                        self.update_terminal(result.get('message', 'Unknown error'), "error")
+                        self.update_terminal("", "system")
+                        self.update_terminal("Verifica:", "system")
+                        self.update_terminal("1. Switch encendido", "system")
+                        self.update_terminal("2. Cable USB conectado", "system")
+                        self.update_terminal("3. Puerto correcto (/dev/ttyUSB0)", "system")
+                else:
+                    self.update_terminal(f"Error del servidor: {response.status_code}", "error")
+                    
+            except requests.RequestException as e:
+                self.update_terminal(f"Error de conexion con backend: {str(e)}", "error")
     
     def simulate_device_welcome(self):
         device_welcome = f"""
@@ -472,8 +664,8 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
         self.update_terminal(device_welcome, "system")
     
     def simulate_connected_state(self):
-        # Para propósitos de demo, iniciamos en estado conectado
-        self.root.after(1500, self.toggle_connection)
+        # Start with disconnected state - user must manually connect
+        pass
     
     def new_device(self):
         # En una implementación real, mostraríamos un diálogo para configurar un nuevo dispositivo
@@ -529,7 +721,7 @@ Comienza por conectarte a un dispositivo usando el botón "Conectar" en la parte
             help_window,
             bg=TERMINAL_BG,
             fg=LIGHT_TEXT,
-            font=("Consolas", 10),
+            font=("Courier New", 10),
             wrap=tk.WORD,
             padx=10,
             pady=10

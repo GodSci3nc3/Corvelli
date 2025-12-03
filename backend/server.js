@@ -74,15 +74,20 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
   const lower = prompt.toLowerCase();
   
   // Determine if we need mode escalation based on switch state
-  const needsEnable = switchPrompt.endsWith('>') && !switchPrompt.includes('(');
-  const needsConfig = !switchPrompt.includes('(config)');
+  const isUserMode = switchPrompt.endsWith('>') && !switchPrompt.includes('(');
+  const isPrivilegedMode = switchPrompt.endsWith('#') && !switchPrompt.includes('(');
+  const isConfigMode = switchPrompt.includes('(config)');
   
   // Build prefix commands based on mode
   let prefix = [];
-  if (needsEnable && !lower.startsWith('show')) {
+  
+  // Only add enable if in user mode and not a show command
+  if (isUserMode && !lower.startsWith('show')) {
     prefix.push('enable');
   }
-  if (needsConfig && !lower.startsWith('show') && (lower.includes('configure') || lower.includes('vlan') || lower.includes('interface') || lower.includes('hostname') || lower.includes('ip'))) {
+  
+  // Only add configure terminal if not already in config mode and not a show command
+  if (!isConfigMode && !lower.startsWith('show') && (lower.includes('configure') || lower.includes('vlan') || lower.includes('interface') || lower.includes('hostname') || lower.includes('ip') || lower.includes('port') || lower.includes('ospf'))) {
     prefix.push('configure terminal');
   }
   
@@ -193,31 +198,61 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
   
   // IP address configuration
   if (lower.includes('ip') || lower.includes('configure') || lower.includes('address')) {
-    const ifMatch = lower.match(/(?:interface )?(?:gigabitethernet|gi|g)(?: )?(\d+\/\d+)/);
-    const ifName = ifMatch ? `GigabitEthernet${ifMatch[1]}` : 'GigabitEthernet0/1';
+    const ifMatch = lower.match(/(?:interface )?(?:gigabitethernet|gi|g|vlan)(?: )?(\d+(?:\/\d+)?)/);
+    
+    // Determine if it's a switch based on the prompt
+    const isSwitch = switchPrompt && switchPrompt.toLowerCase().includes('switch');
+    
     let result = prefix.join('\n');
     if (result) result += '\n';
-    result += `interface ${ifName}\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+    
+    // Check if user specifically mentioned VLAN
+    if (lower.includes('vlan')) {
+      const vlanNum = ifMatch ? ifMatch[1] : '1';
+      result += `interface vlan ${vlanNum}\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+    }
+    // For switches: ALWAYS use VLAN (most switches are Layer 2 only)
+    // User can manually use "no switchport" if they have a Layer 3 switch
+    else if (isSwitch) {
+      // If interface mentioned, inform about VLAN requirement via comment (though we don't show comments)
+      // Default to VLAN 1 for management IP
+      result += `interface vlan 1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+    }
+    // Router: standard IP configuration
+    else {
+      const ifName = ifMatch ? `GigabitEthernet${ifMatch[1]}` : 'GigabitEthernet0/1';
+      result += `interface ${ifName}\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+    }
+    
     return result;
   }
   
   return null;
 }
 
-// Function to get current switch prompt state
+// Function to get current switch prompt state (fast version)
 async function getCurrentPrompt() {
   try {
-    // Create a temporary executor to get the prompt
+    // Quick prompt check without full authentication
     const { stdout } = await execAsync(`python3 -c "
-import sys
-sys.path.insert(0, '.')
-from serial_executor import SerialExecutor
-executor = SerialExecutor()
-if executor.connect():
-    prompt = executor.get_current_prompt()
-    executor.connection.close()
-    print(prompt)
-else:
+import serial
+import time
+
+try:
+    ser = serial.Serial('/dev/ttyUSB0', 9600, timeout=2)
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    ser.write(b'\\\\r\\\\n')
+    time.sleep(0.5)
+    response = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+    ser.close()
+    
+    lines = [line.strip() for line in response.split('\\\\n') if line.strip()]
+    if lines:
+        print(lines[-1])
+    else:
+        print('Switch>')
+except:
     print('Switch>')
 "`);
     
@@ -243,6 +278,10 @@ async function callOpenRouterModel(prompt, switchPrompt = 'Switch>') {
 
 CURRENT SWITCH STATE: ${switchPrompt}
 
+DEVICE TYPE DETECTION:
+- If prompt contains "Switch" = SWITCH DEVICE
+- If prompt contains "Router" = ROUTER DEVICE
+
 CRITICAL RULES:
 1. Output ONLY valid Cisco IOS commands
 2. One command per line
@@ -256,38 +295,50 @@ CRITICAL RULES:
      → Include "configure terminal" if config needed
    - If prompt contains "(config)" (e.g., "Switch(config)#") = CONFIG MODE
      → Ready for config commands, no mode change needed
-7. For IP config: always include "no shutdown" after IP assignment
+
+SWITCH-SPECIFIC RULES:
+- **MOST SWITCHES are Layer 2 only and CANNOT use "no switchport"**
+- For Switch IP configuration:
+  * ALWAYS use "interface vlan 1" for management IP (safest option)
+  * Physical interfaces are for switching (VLANs, trunks, access ports)
+  * DO NOT use "no switchport" unless explicitly asked
+- For Switch physical interfaces: configure switchport settings (mode, vlan, etc.)
+
+ROUTER-SPECIFIC RULES:
+- Routers CAN assign IPs directly to physical interfaces
+- Use standard "interface GigabitEthernet0/1" then "ip address"
 
 EXAMPLES WITH DIFFERENT MODES:
 
-Example 1 - User Mode:
-Current state: Switch>
-Input: "configure ip address on interface gigabitethernet 0/1"
-Output:
-enable
-configure terminal
-interface GigabitEthernet0/1
-ip address 192.168.1.1 255.255.255.0
-no shutdown
-end
-
-Example 2 - Privileged Mode:
+Example 1 - Switch in Privileged Mode, IP on VLAN (Management):
 Current state: Switch#
 Input: "configure ip address on interface gigabitethernet 0/1"
 Output:
 configure terminal
-interface GigabitEthernet0/1
+interface vlan 1
 ip address 192.168.1.1 255.255.255.0
 no shutdown
 end
 
-Example 3 - Config Mode:
-Current state: Switch(config)#
+Example 2 - Switch in Privileged Mode, Management IP directly:
+Current state: Switch#
+Input: "configure management ip address"
+Output:
+configure terminal
+interface vlan 1
+ip address 192.168.1.1 255.255.255.0
+no shutdown
+end
+
+Example 3 - Router in Privileged Mode, IP on interface:
+Current state: Router#
 Input: "configure ip address on interface gigabitethernet 0/1"
 Output:
+configure terminal
 interface GigabitEthernet0/1
 ip address 192.168.1.1 255.255.255.0
 no shutdown
+end
 
 Example 4 - User Mode with VLAN:
 Current state: Switch>
@@ -305,13 +356,11 @@ Input: "show running configuration"
 Output:
 show running-config
 
-Example 6 - User mode, show command:
-Current state: Switch>
-Input: "mostrar la versión del sistema"
-Output:
-show version
-
-Remember: ALWAYS check if the prompt ends with ">" (user mode) and include "enable" + "configure terminal" when needed!`;
+Remember: 
+- ALWAYS check the device type (Switch vs Router)
+- For Switches: ALWAYS use "interface vlan 1" for IPs (Layer 2 switches don't support Layer 3)
+- For Routers: use physical interfaces for IPs
+- ALWAYS check if prompt ends with ">" (user mode) and include "enable" + "configure terminal" when needed!`;
 
   let lastError = null;
 
@@ -368,7 +417,7 @@ Remember: ALWAYS check if the prompt ends with ">" (user mode) and include "enab
   console.error('All OpenRouter models failed. Last error:', lastError?.message);
   console.log('Attempting rule-based generation...');
   
-  const ruleBasedResult = generateRuleBased(prompt);
+  const ruleBasedResult = generateRuleBased(prompt, switchPrompt);
   if (ruleBasedResult) {
     console.log('Using rule-based fallback:', ruleBasedResult);
     return ruleBasedResult;

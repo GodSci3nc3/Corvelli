@@ -206,7 +206,7 @@ class NetworkConsole:
             insertbackground=LIGHT_TEXT,
             selectbackground=ACCENT_COLOR,
             selectforeground=DARK_BG,
-            font=("Courier New", 11),
+            font=("Cascadia Code", 11),
             wrap=tk.WORD,
             bd=0
         )
@@ -214,10 +214,10 @@ class NetworkConsole:
         self.terminal.config(state=tk.DISABLED)
         
         # Configuración de etiquetas de color con tamaños aumentados
-        self.terminal.tag_configure("command", foreground=COMMAND_COLOR, font=("Courier New", 11, "bold"))
-        self.terminal.tag_configure("output", foreground=OUTPUT_COLOR, font=("Courier New", 10))
-        self.terminal.tag_configure("error", foreground=ERROR_COLOR, font=("Courier New", 11, "bold"))
-        self.terminal.tag_configure("success", foreground=SUCCESS_COLOR, font=("Courier New", 11, "bold"))
+        self.terminal.tag_configure("command", foreground=COMMAND_COLOR, font=("Cascadia Code", 11, "bold"))
+        self.terminal.tag_configure("output", foreground=OUTPUT_COLOR, font=("Cascadia Code", 10))
+        self.terminal.tag_configure("error", foreground=ERROR_COLOR, font=("Cascadia Code", 11, "bold"))
+        self.terminal.tag_configure("success", foreground=SUCCESS_COLOR, font=("Cascadia Code", 11, "bold"))
         self.terminal.tag_configure("system", foreground=ACCENT_COLOR, font=("Courier New", 10))
         self.terminal.tag_configure("highlight", foreground=HIGHLIGHT_COLOR, font=("Courier New", 11, "bold"))
     
@@ -388,12 +388,12 @@ class NetworkConsole:
                 response = requests.post('http://localhost:3000/comando', json={
                     "mensaje": command, 
                     "execute": True
-                }, timeout=60)  # Increased timeout for AI processing
+                }, timeout=120)  # Increased timeout for AI + 2 serial connections
             else:
                 # Modo Putty: enviar comando directo sin IA
                 response = requests.post('http://localhost:3000/execute', json={
                     "commands": command
-                }, timeout=60)
+                }, timeout=120)
             
             if response.status_code == 200:
                 result = response.json()
@@ -411,9 +411,7 @@ class NetworkConsole:
                     # Verificar si hubo error de rate limit en el resultado
                     if result.get('error') and 'rate' in str(result.get('error')).lower():
                         self.update_terminal("", "error")
-                        self.update_terminal("=" * 60, "error")
                         self.update_terminal("⚠️  ERROR: LÍMITE DE VELOCIDAD ALCANZADO", "error")
-                        self.update_terminal("=" * 60, "error")
                         self.update_terminal("El servicio de IA está temporalmente limitado.", "system")
                         self.update_terminal("", "system")
                         self.update_terminal("Opciones:", "system")
@@ -422,52 +420,47 @@ class NetworkConsole:
                         self.update_terminal("3. Usa comandos Cisco directos", "system")
                         self.update_terminal("", "system")
                         return
-                    
-                    self.update_terminal("", "system")
-                    self.update_terminal("=" * 60, "system")
-                    self.update_terminal("COMANDOS GENERADOS:", "highlight")
-                    self.update_terminal("=" * 60, "system")
-                    self.update_terminal(generated_commands, "command")
-                    self.update_terminal("", "system")
                 
                 # Show execution results if available
                 if result.get('executed', False) or result.get('success', False):
-                    self.update_terminal("=" * 60, "success")
-                    self.update_terminal("RESULTADOS DE EJECUCIÓN:", "success")
-                    self.update_terminal("=" * 60, "success")
-                    
                     # Para modo AI
                     if 'device_responses' in result:
                         device_responses = result.get('device_responses', [])
                         
-                        for i, cmd_result in enumerate(device_responses, 1):
+                        for cmd_result in device_responses:
                             cmd = cmd_result.get('command', '')
                             response_text = cmd_result.get('response', '')
                             
-                            self.update_terminal(f"\n[{i}] Comando ejecutado:", "system")
-                            self.update_terminal(f"    {cmd}", "command")
+                            # Mostrar comando
+                            if cmd:
+                                self.update_terminal(f"    {cmd}", "command")
                             
+                            # Mostrar respuesta indentada
                             if response_text:
-                                self.update_terminal(f"Respuesta del switch:", "system")
                                 for line in response_text.split('\\n'):
                                     if line.strip():
                                         self.update_terminal(f"    {line}", "output")
+                            
+                            self.update_terminal("", "system")  # Línea en blanco entre comandos
                     
                     # Para modo Putty directo
                     elif 'results' in result:
                         results = result.get('results', [])
-                        for i, cmd_result in enumerate(results, 1):
+                        for cmd_result in results:
                             cmd = cmd_result.get('command', '')
                             response_text = cmd_result.get('response', '')
                             
+                            # Mostrar comando
                             if cmd:
-                                self.update_terminal(f"\n[{i}] {cmd}", "command")
+                                self.update_terminal(f"    {cmd}", "command")
+                            
+                            # Mostrar respuesta indentada
                             if response_text:
                                 for line in response_text.split('\\n'):
                                     if line.strip():
                                         self.update_terminal(f"    {line}", "output")
-                    
-                    self.update_terminal("=" * 60, "success")
+                            
+                            self.update_terminal("", "system")  # Línea en blanco entre comandos
                     
                 else:
                     # Error en la ejecución

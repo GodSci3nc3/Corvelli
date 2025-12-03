@@ -119,27 +119,30 @@ class SerialExecutor:
             # Send command with \r\n (carriage return + line feed)
             self.connection.write(f"{command}\r\n".encode('utf-8'))
             
-            # Wait longer for response
-            time.sleep(2)
-            
-            # Read response with longer timeout
+            # Read response with dynamic timing - wait only as needed
             response = ""
-            max_wait = 5  # Wait up to 5 seconds
+            max_wait = 3  # Max 3 seconds (reduced from 5)
+            idle_threshold = 0.3  # Consider complete after 300ms of no data
             start_time = time.time()
+            last_data_time = start_time
             
             while time.time() - start_time < max_wait:
                 if self.connection.in_waiting:
                     data = self.connection.read(self.connection.in_waiting)
                     response += data.decode('utf-8', errors='ignore')
-                    time.sleep(0.2)
+                    last_data_time = time.time()
                     
-                    # If we got some response, wait a bit more for complete output
-                    if response and time.time() - start_time > 1:
-                        # Check if output seems complete (ends with prompt or similar)
-                        if any(marker in response for marker in ['#', '>', 'Switch', 'Router']):
+                    # Check if output seems complete (ends with prompt)
+                    if any(marker in response[-50:] for marker in ['#', '>', 'Switch', 'Router']):
+                        # Wait just a bit more to ensure nothing else coming
+                        time.sleep(0.1)
+                        if not self.connection.in_waiting:
                             break
                 else:
-                    time.sleep(0.1)
+                    # No data waiting - check if we've been idle long enough
+                    if response and (time.time() - last_data_time) > idle_threshold:
+                        break
+                    time.sleep(0.05)  # Small sleep to avoid CPU spinning
             
             return response.strip() if response else "No response from device"
         except Exception as e:
@@ -164,7 +167,8 @@ class SerialExecutor:
                     "command": command,
                     "response": response
                 })
-                time.sleep(0.5)
+                # Minimal delay between commands - only 100ms instead of 500ms
+                time.sleep(0.1)
             
             return {
                 "success": True, 

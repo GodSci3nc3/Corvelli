@@ -69,6 +69,14 @@ const openai = new OpenAI({
 const app = express();
 app.use(express.json());
 
+// Helper function to clean unnecessary 'end' commands
+function cleanConfigEnd(commands, keepEnd = false) {
+  if (keepEnd) return commands; // Keep 'end' for save operations
+  
+  // Remove standalone 'end' at the end of command sequence
+  return commands.replace(/\nend\s*$/i, '').trim();
+}
+
 // Rule-based generator for common patterns (fallback)
 function generateRuleBased(prompt, switchPrompt = 'Switch>') {
   const lower = prompt.toLowerCase();
@@ -141,8 +149,8 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
         result += `vlan ${vlan.number}\nname ${vlan.name}\n`;
       });
       
-      result += 'end';
-      return result;
+      // Don't add 'end' - stay in config mode
+      return result.trim();
     }
   }
   
@@ -171,7 +179,7 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
         result += `\nbanner motd #${bannerMsg}#`;
       }
       
-      result += '\nend';
+      // Don't add 'end' - stay in config mode
       return result;
     }
   }
@@ -357,18 +365,19 @@ CRITICAL RULES:
 3. NO explanations, NO markdown, NO comments
 4. Use proper Cisco syntax and capitalization
 5. For interfaces: use full name like "GigabitEthernet0/1"
-6. **ANALYZE THE CURRENT PROMPT CAREFULLY**:
+6. **ANALYZE THE CURRENT PROMPT STATE**:
    - If prompt ends with ">" (e.g., "Switch>") = USER MODE
-     → MUST include "enable" first, then "configure terminal" if config needed
-   - If prompt ends with "#" without "(config)" (e.g., "Switch#") = PRIVILEGED MODE
-     → Include "configure terminal" if config needed
-   - If prompt contains "(config)" (e.g., "Switch(config)#") = CONFIG MODE
-     → Ready for config commands, no mode change needed
+     → MUST include "enable" first, then "configure terminal" for config commands
+   - If prompt ends with "#" WITHOUT "(config)" (e.g., "Switch#" or "SW-Office-Main#") = PRIVILEGED MODE
+     → MUST include "configure terminal" before any config commands
+   - If prompt contains "(config)" (e.g., "Switch(config)#") = ALREADY IN CONFIG MODE
+     → Do NOT add "configure terminal", just execute config commands directly
+7. **STAY IN CONFIG MODE** - Do NOT use "end" or "exit" unless user explicitly asks to exit or save
 
 SWITCH-SPECIFIC RULES:
 - **MOST SWITCHES are Layer 2 only and CANNOT use "no switchport"**
 - For Switch IP configuration:
-  * ALWAYS use "interface vlan 1" for management IP (safest option)
+  * ALWAYS use "interface vlan X" for management IP
   * Physical interfaces are for switching (VLANs, trunks, access ports)
   * DO NOT use "no switchport" unless explicitly asked
 - For Switch physical interfaces: configure switchport settings (mode, vlan, etc.)
@@ -379,57 +388,55 @@ ROUTER-SPECIFIC RULES:
 
 EXAMPLES WITH DIFFERENT MODES:
 
-Example 1 - Switch in Privileged Mode, IP on VLAN (Management):
-Current state: Switch#
-Input: "configure ip address on interface gigabitethernet 0/1"
-Output:
-configure terminal
-interface vlan 1
-ip address 192.168.1.1 255.255.255.0
-no shutdown
-end
-
-Example 2 - Switch in Privileged Mode, Management IP directly:
-Current state: Switch#
-Input: "configure management ip address"
-Output:
-configure terminal
-interface vlan 1
-ip address 192.168.1.1 255.255.255.0
-no shutdown
-end
-
-Example 3 - Router in Privileged Mode, IP on interface:
-Current state: Router#
-Input: "configure ip address on interface gigabitethernet 0/1"
-Output:
-configure terminal
-interface GigabitEthernet0/1
-ip address 192.168.1.1 255.255.255.0
-no shutdown
-end
-
-Example 4 - User Mode with VLAN:
-Current state: Switch>
+Example 1 - ALREADY IN CONFIG MODE (DON'T add configure terminal):
+Current state: Switch(config)#
 Input: "create vlan 10 named sales"
+Output:
+vlan 10
+name sales
+
+Example 2 - PRIVILEGED MODE (MUST add configure terminal):
+Current state: Switch#
+Input: "create vlan 10 named sales"
+Output:
+configure terminal
+vlan 10
+name sales
+
+Example 3 - PRIVILEGED MODE with hostname:
+Current state: SW-Office-Main#
+Input: "configure hostname and banner"
+Output:
+configure terminal
+hostname SW-Office-Main
+banner motd $Authorized Access Only$
+
+Example 4 - USER MODE (need enable + configure terminal):
+Current state: Switch>
+Input: "create vlan 10"
 Output:
 enable
 configure terminal
 vlan 10
-name sales
-end
 
-Example 5 - Show commands (any mode):
+Example 5 - User explicitly asks to save (exit config and save):
+Current state: Switch(config)#
+Input: "save configuration"
+Output:
+end
+copy running-config startup-config
+
+Example 6 - Show commands (NO config mode needed):
 Current state: ${switchPrompt}
 Input: "show running configuration"
 Output:
 show running-config
 
 Remember: 
-- ALWAYS check the device type (Switch vs Router)
-- For Switches: ALWAYS use "interface vlan 1" for IPs (Layer 2 switches don't support Layer 3)
-- For Routers: use physical interfaces for IPs
-- ALWAYS check if prompt ends with ">" (user mode) and include "enable" + "configure terminal" when needed!`;
+- CHECK THE EXACT PROMPT STATE - if it has "(config)" you're in config mode, if just "#" you need "configure terminal"
+- Only use "end" if user asks to save or exit
+- For Switches: use "interface vlan X" for IPs (Layer 2 switches)
+- For Routers: use physical interfaces for IPs`;
 
   let lastError = null;
 

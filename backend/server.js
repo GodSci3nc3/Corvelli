@@ -122,18 +122,26 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
     return 'show arp';
   }
   
-  // VLAN creation
+  // VLAN creation (multiple VLANs support)
   if (lower.includes('vlan') && (lower.includes('create') || lower.includes('crear'))) {
-    const vlanMatch = lower.match(/(\d+)/);
-    const nameMatch = lower.match(/named? ([\w-]+)/);
-    if (vlanMatch) {
+    // Match all VLAN definitions: "VLAN 10 named Employees, VLAN 20 named Guests, etc."
+    const vlanPattern = /vlan\s+(\d+)\s+named?\s+([\w-]+)/gi;
+    const vlans = [];
+    let match;
+    
+    while ((match = vlanPattern.exec(lower)) !== null) {
+      vlans.push({ number: match[1], name: match[2] });
+    }
+    
+    if (vlans.length > 0) {
       let result = prefix.join('\n');
       if (result) result += '\n';
-      result += `vlan ${vlanMatch[1]}`;
-      if (nameMatch) {
-        result += `\nname ${nameMatch[1]}`;
-      }
-      result += '\nend';
+      
+      vlans.forEach(vlan => {
+        result += `vlan ${vlan.number}\nname ${vlan.name}\n`;
+      });
+      
+      result += 'end';
       return result;
     }
   }
@@ -148,15 +156,30 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
     }
   }
   
-  // Hostname
+  // Hostname with optional banner
   if (lower.includes('hostname')) {
-    const hostnameMatch = lower.match(/hostname (?:to )?([\w-]+)/);
+    const hostnameMatch = lower.match(/hostname (?:to )?([-\w]+)/);
     if (hostnameMatch) {
       let result = prefix.join('\n');
       if (result) result += '\n';
-      result += `hostname ${hostnameMatch[1]}\nend`;
+      result += `hostname ${hostnameMatch[1]}`;
+      
+      // Check if banner is also requested
+      if (lower.includes('banner')) {
+        const bannerMatch = lower.match(/banner.*?['"]([^'"]+)['"]/);
+        const bannerMsg = bannerMatch ? bannerMatch[1] : 'Authorized Access Only';
+        result += `\nbanner motd #${bannerMsg}#`;
+      }
+      
+      result += '\nend';
       return result;
     }
+  }
+  
+  // Save configuration
+  if ((lower.includes('save') || lower.includes('copy')) && 
+      (lower.includes('config') || lower.includes('startup') || lower.includes('nvram'))) {
+    return 'copy running-config startup-config';
   }
   
   // OSPF
@@ -178,13 +201,44 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
     }
   }
   
-  // Port security
+  // Port assignment to VLAN (before port security)
+  if (lower.includes('assign') && lower.includes('port') && lower.includes('vlan')) {
+    // Match patterns like "gi0/1 to gi0/10" or "gi0/11 to gi0/15"
+    const rangeMatch = lower.match(/(?:gi|gigabitethernet)(\d+)\/(\d+)\s+to\s+(?:gi|gigabitethernet)\d+\/(\d+)/);
+    const vlanMatch = lower.match(/vlan\s+(\d+)/);
+    
+    if (rangeMatch && vlanMatch) {
+      const slot = rangeMatch[1];
+      const startPort = parseInt(rangeMatch[2]);
+      const endPort = parseInt(rangeMatch[3]);
+      const vlanNum = vlanMatch[1];
+      
+      let result = prefix.join('\n');
+      if (result) result += '\n';
+      
+      // Use interface range for efficiency
+      result += `interface range GigabitEthernet${slot}/${startPort}-${endPort}\nswitchport mode access\nswitchport access vlan ${vlanNum}\nend`;
+      return result;
+    }
+  }
+  
+  // Port security (with detailed options)
   if (lower.includes('port') && lower.includes('security')) {
-    const ifMatch = lower.match(/(?:interface )?(?:gigabitethernet|gi|g)?(?: )?(\d+\/\d+)?/);
+    const ifMatch = lower.match(/(?:interface )?(?:gigabitethernet|gi|g)(\d+\/\d+)/);
     const ifName = ifMatch && ifMatch[1] ? `GigabitEthernet${ifMatch[1]}` : 'GigabitEthernet0/1';
+    const maxMatch = lower.match(/maximum\s+(\d+)/);
+    const maxMacs = maxMatch ? maxMatch[1] : '2';
+    
     let result = prefix.join('\n');
     if (result) result += '\n';
-    result += `interface ${ifName}\nswitchport mode access\nswitchport port-security\nend`;
+    result += `interface ${ifName}\nswitchport mode access\nswitchport port-security\nswitchport port-security maximum ${maxMacs}`;
+    
+    // Check for violation mode
+    if (lower.includes('shutdown')) {
+      result += '\nswitchport port-security violation shutdown';
+    }
+    
+    result += '\nend';
     return result;
   }
   
@@ -199,6 +253,9 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
   // IP address configuration
   if (lower.includes('ip') || lower.includes('configure') || lower.includes('address')) {
     const ifMatch = lower.match(/(?:interface )?(?:gigabitethernet|gi|g|vlan)(?: )?(\d+(?:\/\d+)?)/);
+    const ipMatch = lower.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+    const maskMatch = lower.match(/mask\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/) || 
+                      lower.match(/\/(\d+)/);
     
     // Determine if it's a switch based on the prompt
     const isSwitch = switchPrompt && switchPrompt.toLowerCase().includes('switch');
@@ -206,22 +263,34 @@ function generateRuleBased(prompt, switchPrompt = 'Switch>') {
     let result = prefix.join('\n');
     if (result) result += '\n';
     
+    // Extract IP and mask from prompt if available
+    const ipAddr = ipMatch ? ipMatch[1] : '192.168.1.1';
+    let mask = '255.255.255.0';
+    if (maskMatch) {
+      if (maskMatch[1].includes('.')) {
+        mask = maskMatch[1];
+      } else {
+        // CIDR notation - convert to mask
+        const cidr = parseInt(maskMatch[1]);
+        if (cidr === 24) mask = '255.255.255.0';
+        else if (cidr === 16) mask = '255.255.0.0';
+        else if (cidr === 8) mask = '255.0.0.0';
+      }
+    }
+    
     // Check if user specifically mentioned VLAN
     if (lower.includes('vlan')) {
       const vlanNum = ifMatch ? ifMatch[1] : '1';
-      result += `interface vlan ${vlanNum}\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+      result += `interface vlan ${vlanNum}\nip address ${ipAddr} ${mask}\nno shutdown\nend`;
     }
     // For switches: ALWAYS use VLAN (most switches are Layer 2 only)
-    // User can manually use "no switchport" if they have a Layer 3 switch
     else if (isSwitch) {
-      // If interface mentioned, inform about VLAN requirement via comment (though we don't show comments)
-      // Default to VLAN 1 for management IP
-      result += `interface vlan 1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+      result += `interface vlan 1\nip address ${ipAddr} ${mask}\nno shutdown\nend`;
     }
     // Router: standard IP configuration
     else {
       const ifName = ifMatch ? `GigabitEthernet${ifMatch[1]}` : 'GigabitEthernet0/1';
-      result += `interface ${ifName}\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend`;
+      result += `interface ${ifName}\nip address ${ipAddr} ${mask}\nno shutdown\nend`;
     }
     
     return result;
@@ -265,13 +334,13 @@ except:
 
 // Function to call OpenRouter API with fallback models
 async function callOpenRouterModel(prompt, switchPrompt = 'Switch>') {
-  // List of models to try in order (verified free models)
+  // List of models to try in order (cheap paid models - verified December 2025)
   const models = [
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.2-3b-instruct:free",
-    "meta-llama/llama-3.2-1b-instruct:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free",
-    "mistralai/mistral-7b-instruct:free"
+    "google/gemini-2.0-flash-lite-001",      // $0.000075/1K tokens - SUPER BARATO
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5", // $0.0001/1K tokens - Muy bueno
+    "google/gemini-2.5-flash-lite",          // $0.0001/1K tokens
+    "google/gemini-2.0-flash-001",           // $0.0001/1K tokens - Backup
+    "google/gemini-2.5-flash"                // $0.0003/1K tokens - Mejor calidad
   ];
 
   const systemPrompt = `You are a Cisco IOS command generator. Convert natural language requests into exact Cisco IOS commands.

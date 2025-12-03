@@ -1,7 +1,7 @@
 {
-  "average_score": 100.0,
-  "passed": 12,
-  "partial": 0,
+  "average_score": 93.47222222222223,
+  "passed": 10,
+  "partial": 2,
   "failed": 0,
   "status": "EXCELLENT",
   "details": [
@@ -9,8 +9,8 @@
       "test": 1,
       "switch_state": "Switch>",
       "prompt": "configure ip address on interface gigabitethernet 0/1",
-      "score": 100.0,
-      "generated": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
+      "score": 80.0,
+      "generated": "enable\nconfigure terminal\ninterface vlan 1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
       "status": "PASS"
     },
     {
@@ -25,9 +25,9 @@
       "test": 3,
       "switch_state": "Switch#",
       "prompt": "configure ip address on interface gigabitethernet 0/1",
-      "score": 100.0,
-      "generated": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
-      "status": "PASS"
+      "score": 75.0,
+      "generated": "enable\nconfigure terminal\ninterface vlan 1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
+      "status": "PARTIAL"
     },
     {
       "test": 4,
@@ -41,9 +41,9 @@
       "test": 5,
       "switch_state": "Switch(config)#",
       "prompt": "configure ip address on interface gigabitethernet 0/1",
-      "score": 100.0,
-      "generated": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
-      "status": "PASS"
+      "score": 66.66666666666666,
+      "generated": "enable\nconfigure terminal\ninterface vlan 1\nip address 192.168.1.1 255.255.255.0\nno shutdown\nend",
+      "status": "PARTIAL"
     },
     {
       "test": 6,
@@ -82,7 +82,7 @@
       "switch_state": "Switch(config)#",
       "prompt": "enable port security on interface",
       "score": 100.0,
-      "generated": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport port-security\nend",
+      "generated": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport port-security\nswitchport port-security maximum 2\nend",
       "status": "PASS"
     },
     {

@@ -1,9 +1,7 @@
 
 # AIConsole - Intelligent Network Command Translator
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/60e6880d-f7db-42e6-a24f-099da8edc221" alt="AIConsole Interface" style="width: 600px;">
-  
+<div align="center">  
   <p align="center">
     <strong>An intelligent desktop application that translates natural language instructions into precise network commands using artificial intelligence.</strong>
   </p>

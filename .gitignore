@@ -1,0 +1,87 @@
+# Environment Variables & API Keys
+.env
+.env.local
+.env.*.local
+
+# API Keys and Secrets
+*.key
+*.pem
+*.pub
+secrets/
+
+# Node Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+logs/
+*.log
+
+# Temporary Files
+temp_icons/
+*.tmp
+tmp/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Serial/Debug Files
+*.serial
+*.debug
+debug.log
+
+# IDE specific files
+.vscode/settings.json
+.vscode/extensions.json
+
+# Backup files
+*.bak
+*.backup
+*~

@@ -62,9 +62,12 @@ class NetworkConsole:
         self.device_name = "Router1"
         self.device_type = "Router"
         self.connection_type = "SSH"
+        self.ssh_host = ""
+        self.ssh_username = ""
+        self.ssh_password = ""
         self.history = []
         self.history_index = 0
-        self.ai_mode = False  # Modo AI desactivado por defecto (modo Putty)
+        self.ai_mode = False
         
         # Cargar iconos
         self.icons = self.load_icons()
@@ -382,18 +385,32 @@ class NetworkConsole:
     
     def process_command(self, command):
         try:
-            # Determinar el endpoint según el modo
+            # Determine execution mode based on connection type and AI mode
+            conn_type = self.connection_type_var.get()
+            
             if self.ai_mode:
-                # Modo AI: usar endpoint con IA
+                # AI Mode: Generate commands first, then execute
                 response = requests.post('http://localhost:3000/comando', json={
-                    "mensaje": command, 
-                    "execute": True
-                }, timeout=120)  # Increased timeout for AI + 2 serial connections
-            else:
-                # Modo Putty: enviar comando directo sin IA
-                response = requests.post('http://localhost:3000/execute', json={
-                    "commands": command
+                    "mensaje": command,
+                    "execute": True,
+                    "connection_type": conn_type,
+                    "ssh_host": self.ssh_host if conn_type == "SSH" else None,
+                    "ssh_username": self.ssh_username if conn_type == "SSH" else None,
+                    "ssh_password": self.ssh_password if conn_type == "SSH" else None
                 }, timeout=120)
+            else:
+                # Putty Mode: Execute commands directly
+                if conn_type == "SSH":
+                    response = requests.post('http://localhost:3000/ssh-execute', json={
+                        "commands": command,
+                        "host": self.ssh_host,
+                        "username": self.ssh_username,
+                        "password": self.ssh_password
+                    }, timeout=120)
+                else:
+                    response = requests.post('http://localhost:3000/execute', json={
+                        "commands": command
+                    }, timeout=120)
             
             if response.status_code == 200:
                 result = response.json()
@@ -590,54 +607,169 @@ class NetworkConsole:
     
     def toggle_connection(self):
         if self.connected:
-            # Desconectar
             self.connected = False
             self.connect_button.config(text="Conectar", bg=ACCENT_COLOR)
             self.status_indicator.itemconfig(1, fill=ERROR_COLOR)
             self.status_label.config(text="Desconectado")
             self.update_terminal(f"Conexion cerrada.", "error")
         else:
-            # Intentar conexion REAL
-            self.update_terminal(f"Verificando conexion serial USB...", "system")
-            self.root.update()
+            conn_type = self.connection_type_var.get()
             
-            try:
-                response = requests.get('http://localhost:3000/connection-status', timeout=10)
-                if response.status_code == 200:
-                    result = response.json()
+            if conn_type == "SSH":
+                self.connect_ssh()
+            elif conn_type == "Console":
+                self.connect_serial()
+            else:
+                self.update_terminal(f"Tipo de conexion {conn_type} no implementado aun.", "error")
+    
+    def show_ssh_credentials_dialog(self):
+        """Show dialog to get SSH credentials"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Credenciales SSH")
+        dialog.geometry("400x250")
+        dialog.configure(bg=DARK_BG)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        credentials = {'host': '', 'username': '', 'password': '', 'confirmed': False}
+        
+        tk.Label(dialog, text="Configuracion SSH", bg=DARK_BG, fg=LIGHT_TEXT, 
+                font=("Segoe UI", 12, "bold")).pack(pady=10)
+        
+        frame = tk.Frame(dialog, bg=DARK_BG)
+        frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+        
+        tk.Label(frame, text="Host/IP:", bg=DARK_BG, fg=LIGHT_TEXT).grid(row=0, column=0, sticky="w", pady=5)
+        host_entry = tk.Entry(frame, bg=TERMINAL_BG, fg=LIGHT_TEXT, width=30)
+        host_entry.insert(0, "192.168.1.10")
+        host_entry.grid(row=0, column=1, pady=5, padx=5)
+        
+        tk.Label(frame, text="Usuario:", bg=DARK_BG, fg=LIGHT_TEXT).grid(row=1, column=0, sticky="w", pady=5)
+        user_entry = tk.Entry(frame, bg=TERMINAL_BG, fg=LIGHT_TEXT, width=30)
+        user_entry.insert(0, "admin")
+        user_entry.grid(row=1, column=1, pady=5, padx=5)
+        
+        tk.Label(frame, text="Password:", bg=DARK_BG, fg=LIGHT_TEXT).grid(row=2, column=0, sticky="w", pady=5)
+        pass_entry = tk.Entry(frame, bg=TERMINAL_BG, fg=LIGHT_TEXT, width=30, show="*")
+        pass_entry.insert(0, "admin123")
+        pass_entry.grid(row=2, column=1, pady=5, padx=5)
+        
+        def on_connect():
+            credentials['host'] = host_entry.get().strip()
+            credentials['username'] = user_entry.get().strip()
+            credentials['password'] = pass_entry.get()
+            credentials['confirmed'] = True
+            dialog.destroy()
+        
+        def on_cancel():
+            dialog.destroy()
+        
+        btn_frame = tk.Frame(dialog, bg=DARK_BG)
+        btn_frame.pack(pady=10)
+        
+        tk.Button(btn_frame, text="Conectar", command=on_connect, 
+                 bg=SUCCESS_COLOR, fg=DARK_BG, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Cancelar", command=on_cancel, 
+                 bg=ERROR_COLOR, fg=DARK_BG, width=10).pack(side=tk.LEFT, padx=5)
+        
+        dialog.wait_window()
+        return credentials
+    
+    def connect_ssh(self):
+        """Connect via SSH"""
+        credentials = self.show_ssh_credentials_dialog()
+        
+        if not credentials['confirmed']:
+            self.update_terminal("Conexion SSH cancelada.", "system")
+            return
+        
+        if not credentials['host'] or not credentials['username']:
+            self.update_terminal("Error: Host y usuario son obligatorios.", "error")
+            return
+        
+        self.ssh_host = credentials['host']
+        self.ssh_username = credentials['username']
+        self.ssh_password = credentials['password']
+        
+        self.update_terminal(f"Conectando via SSH a {self.ssh_host}...", "system")
+        self.root.update()
+        
+        try:
+            response = requests.post('http://localhost:3000/ssh-connect', json={
+                'host': self.ssh_host,
+                'username': self.ssh_username,
+                'password': self.ssh_password
+            }, timeout=15)
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get('connected'):
+                    self.connected = True
+                    self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
+                    self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
+                    self.status_label.config(text=f"Conectado via SSH ({self.ssh_host})")
                     
-                    if result.get('connected'):
-                        # Conexion exitosa
-                        self.connected = True
-                        self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
-                        self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
-                        self.status_label.config(text="Conectado via USB Serial (/dev/ttyUSB0)")
-                        
-                        self.update_terminal("", "system")
-                        self.update_terminal("=" * 60, "success")
-                        self.update_terminal("CONEXION ESTABLECIDA CON SWITCH", "success")
-                        self.update_terminal("=" * 60, "success")
-                        self.update_terminal(f"Puerto: /dev/ttyUSB0", "system")
-                        self.update_terminal(f"Baudrate: 9600", "system")
-                        self.update_terminal(f"Estado: Autenticado", "success")
-                        self.update_terminal("=" * 60, "success")
-                        self.update_terminal("", "system")
-                    else:
-                        # Conexion fallida
-                        self.connected = False
-                        self.update_terminal("", "system")
-                        self.update_terminal("ERROR: No se pudo conectar al switch", "error")
-                        self.update_terminal(result.get('message', 'Unknown error'), "error")
-                        self.update_terminal("", "system")
-                        self.update_terminal("Verifica:", "system")
-                        self.update_terminal("1. Switch encendido", "system")
-                        self.update_terminal("2. Cable USB conectado", "system")
-                        self.update_terminal("3. Puerto correcto (/dev/ttyUSB0)", "system")
+                    self.update_terminal("", "system")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal("CONEXION SSH ESTABLECIDA", "success")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal(f"Host: {self.ssh_host}", "system")
+                    self.update_terminal(f"Usuario: {self.ssh_username}", "system")
+                    self.update_terminal(f"Estado: Autenticado", "success")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal("", "system")
                 else:
-                    self.update_terminal(f"Error del servidor: {response.status_code}", "error")
+                    self.connected = False
+                    self.update_terminal("", "system")
+                    self.update_terminal("ERROR: No se pudo conectar via SSH", "error")
+                    self.update_terminal(result.get('error', 'Unknown error'), "error")
+            else:
+                self.update_terminal(f"Error del servidor: {response.status_code}", "error")
+                
+        except requests.RequestException as e:
+            self.update_terminal(f"Error de conexion con backend: {str(e)}", "error")
+    
+    def connect_serial(self):
+        """Connect via Serial (Console)"""
+        self.update_terminal(f"Verificando conexion serial USB...", "system")
+        self.root.update()
+        
+        try:
+            response = requests.get('http://localhost:3000/connection-status', timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get('connected'):
+                    self.connected = True
+                    self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
+                    self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
+                    self.status_label.config(text="Conectado via USB Serial (/dev/ttyUSB0)")
                     
-            except requests.RequestException as e:
-                self.update_terminal(f"Error de conexion con backend: {str(e)}", "error")
+                    self.update_terminal("", "system")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal("CONEXION ESTABLECIDA CON SWITCH", "success")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal(f"Puerto: /dev/ttyUSB0", "system")
+                    self.update_terminal(f"Baudrate: 9600", "system")
+                    self.update_terminal(f"Estado: Autenticado", "success")
+                    self.update_terminal("=" * 60, "success")
+                    self.update_terminal("", "system")
+                else:
+                    self.connected = False
+                    self.update_terminal("", "system")
+                    self.update_terminal("ERROR: No se pudo conectar al switch", "error")
+                    self.update_terminal(result.get('message', 'Unknown error'), "error")
+                    self.update_terminal("", "system")
+                    self.update_terminal("Verifica:", "system")
+                    self.update_terminal("1. Switch encendido", "system")
+                    self.update_terminal("2. Cable USB conectado", "system")
+                    self.update_terminal("3. Puerto correcto (/dev/ttyUSB0)", "system")
+            else:
+                self.update_terminal(f"Error del servidor: {response.status_code}", "error")
+                
+        except requests.RequestException as e:
+            self.update_terminal(f"Error de conexion con backend: {str(e)}", "error")
     
     def simulate_device_welcome(self):
         device_welcome = f"""

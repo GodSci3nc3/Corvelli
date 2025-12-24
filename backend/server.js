@@ -532,17 +532,66 @@ async function executeOnSerial(commands) {
   }
 }
 
+// Function to execute commands via SSH
+async function executeOnSSH(commands, host, username, password) {
+  try {
+    console.log('Executing commands via SSH:', commands);
+    
+    const escapedCmd = commands.replace(/'/g, "'\\''");
+    const escapedPass = password.replace(/'/g, "'\\''");
+    
+    const { stdout, stderr } = await execAsync(
+      `python3 ssh_executor.py '${escapedCmd}' ${host} ${username} '${escapedPass}'`
+    );
+    
+    if (stderr) {
+      console.error('SSH execution stderr:', stderr);
+    }
+    
+    const result = JSON.parse(stdout);
+    return result;
+  } catch (error) {
+    console.error('SSH execution error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Function to test SSH connection
+async function testSSHConnection(host, username, password) {
+  try {
+    const escapedPass = password.replace(/'/g, "'\\''");
+    const testCommand = 'show version';
+    
+    const { stdout, stderr } = await execAsync(
+      `python3 ssh_executor.py '${testCommand}' ${host} ${username} '${escapedPass}'`,
+      { timeout: 15000 }
+    );
+    
+    const result = JSON.parse(stdout);
+    return result.success;
+  } catch (error) {
+    console.error('SSH connection test failed:', error);
+    return false;
+  }
+}
+
 app.post('/comando', async (req, res) => {
   const prompt = req.body.mensaje;
-  const executeSerial = req.body.execute || false; // Optional parameter to execute on device
+  const executeSerial = req.body.execute || false;
+  const connectionType = req.body.connection_type || 'Console';
+  const sshHost = req.body.ssh_host;
+  const sshUsername = req.body.ssh_username;
+  const sshPassword = req.body.ssh_password;
   
   console.log('Receiving request:', req.body.mensaje);
-  console.log('Execute on serial:', executeSerial);
+  console.log('Execute:', executeSerial, 'Connection type:', connectionType);
   
   try {
     console.log('Sending to OpenRouter API...');
     
-    // Get current switch prompt state if executing on device
     let switchPrompt = 'Switch>';
     if (executeSerial) {
       console.log('Getting current switch state...');
@@ -559,10 +608,15 @@ app.post('/comando', async (req, res) => {
       generated: true
     };
     
-    // If execution is requested, try to execute on serial device
     if (executeSerial) {
-      console.log('Attempting serial execution...');
-      const executionResult = await executeOnSerial(generatedCommands);
+      console.log('Attempting execution via', connectionType);
+      let executionResult;
+      
+      if (connectionType === 'SSH') {
+        executionResult = await executeOnSSH(generatedCommands, sshHost, sshUsername, sshPassword);
+      } else {
+        executionResult = await executeOnSerial(generatedCommands);
+      }
       
       response.execution = executionResult;
       response.executed = executionResult.success;
@@ -580,7 +634,6 @@ app.post('/comando', async (req, res) => {
   } catch (error) {
     console.error('ERROR:', error);
     
-    // Fallback to error message for demo
     const fallbackResponse = `interface GigabitEthernet0/1
 ip address 192.168.1.1 255.255.255.0
 no shutdown`;
@@ -605,6 +658,53 @@ app.post('/execute', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Direct execution error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// New endpoint for SSH connection test
+app.post('/ssh-connect', async (req, res) => {
+  const { host, username, password } = req.body;
+  
+  console.log('SSH connection test:', host, username);
+  
+  try {
+    const connected = await testSSHConnection(host, username, password);
+    
+    if (connected) {
+      res.json({
+        connected: true,
+        message: `Conectado exitosamente a ${host}`
+      });
+    } else {
+      res.json({
+        connected: false,
+        error: 'Autenticacion fallida o host no alcanzable'
+      });
+    }
+  } catch (error) {
+    console.error('SSH connection error:', error);
+    res.json({
+      connected: false,
+      error: error.message
+    });
+  }
+});
+
+// New endpoint for direct SSH execution
+app.post('/ssh-execute', async (req, res) => {
+  const { commands, host, username, password } = req.body;
+  
+  console.log('Direct SSH execution request:', commands);
+  
+  try {
+    const result = await executeOnSSH(commands, host, username, password);
+    res.json(result);
+  } catch (error) {
+    console.error('Direct SSH execution error:', error);
     res.status(500).json({
       success: false,
       error: error.message

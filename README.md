@@ -220,11 +220,13 @@ AIConsole/
 ├── docs/                  # Documentation and examples
 └── assets/               # Project resources and screenshots
 ---
-
+```
 <div align="center">
   <strong>Developed by Arturo Rosales V</strong><br>
   <a href="https://github.com/GodSci3nc3">GitHub</a> | 
   <a href="mailto:rosalesvelazquezarturo@email.com">Email</a>
   
-  <p>For questions, issues, or collaboration opportunities, please reach out through GitHub or email.</p>
+  <p>lease reach out through GitHub or email for any questions.</p>
 </div>
+
+

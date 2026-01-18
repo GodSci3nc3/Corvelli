@@ -1,5 +1,5 @@
 
-# AIConsole - Intelligent Network Command Translator
+# C O R V E L L I - AI NETWORK ASSISTANT
 
 <div align="center">  
   <p align="center">

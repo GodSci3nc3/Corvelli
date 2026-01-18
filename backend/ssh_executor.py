@@ -21,6 +21,7 @@ class SSHExecutor:
         self.client = None
         self.shell = None
         self.authenticated = False
+        self.last_error = None
     
     def connect(self):
         """Establish SSH connection and authenticate"""
@@ -48,16 +49,16 @@ class SSHExecutor:
             return True
             
         except paramiko.AuthenticationException:
-            print(f"Authentication failed for {self.username}@{self.host}")
+            self.last_error = f"Authentication failed for {self.username}@{self.host}"
             return False
         except paramiko.SSHException as e:
-            print(f"SSH error: {e}")
+            self.last_error = f"SSH error: {e}"
             return False
         except socket.timeout:
-            print(f"Connection timeout to {self.host}:{self.port}")
+            self.last_error = f"Connection timeout to {self.host}:{self.port}"
             return False
         except Exception as e:
-            print(f"Connection error: {e}")
+            self.last_error = f"Connection error: {e}"
             return False
     
     def get_current_prompt(self):
@@ -120,7 +121,8 @@ class SSHExecutor:
     def execute_commands(self, commands_string):
         """Execute multiple commands from string"""
         if not self.connect():
-            return {"success": False, "error": "Failed to connect via SSH"}
+            error_msg = self.last_error or "Failed to connect via SSH"
+            return {"success": False, "error": error_msg}
         
         commands = [cmd.strip() for cmd in commands_string.split('\n') if cmd.strip()]
         results = []

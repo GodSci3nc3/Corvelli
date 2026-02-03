@@ -750,4 +750,18 @@ app.get('/connection-status', async (req, res) => {
   }
 });
 
+app.post('/disconnect', (req, res) => {
+  connectionState = {
+    type: null,
+    connected: false,
+    credentials: {},
+    lastPrompt: 'Switch>'
+  };
+  
+  res.json({ 
+    success: true, 
+    message: 'Connection state cleared' 
+  });
+});
+
 app.listen(3000, () => console.log('AIConsole Backend - OpenRouter API + Serial Mode - Port 3000'));

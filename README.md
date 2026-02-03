@@ -161,52 +161,6 @@
    python app.py
    ```
 
-## Usage
-
-### Basic Operation
-1. Launch the desktop application
-2. Type natural language network commands in the input field
-3. Click "Generate Command" or press Enter
-4. View the translated Cisco IOS command in the output area
-5. Copy the command for use in your network environment
-
-### Example Translations
-
-| Natural Language Input | Generated Cisco Command |
-|----------------------|-------------------------|
-| "show active interfaces" | `show ip interface brief` |
-| "configure IP on fa0/1" | `interface FastEthernet0/1`<br>`ip address [IP] [MASK]` |
-| "display current configuration" | `show running-config` |
-| "set hostname to Router1" | `hostname Router1` |
-| "enable OSPF on network" | `router ospf 1`<br>`network [NETWORK] [WILDCARD] area 0` |
-
-## Roadmap
-
-### Phase 1: MVP (Current)
-- [x] Natural language to command translation
-- [x] Desktop GUI interface
-- [x] Basic Cisco IOS command support
-- [x] Real-time AI processing
-
-### Phase 2: Command Execution
-- [ ] SSH connectivity to network devices
-- [ ] Secure credential management
-- [ ] Command execution with result display
-- [ ] Error handling and validation
-
-### Phase 3: Advanced Features
-- [ ] Multi-vendor support (MikroTik, Juniper, etc.)
-- [ ] Command history and favorites
-- [ ] Learning mode with explanations
-- [ ] Web-based interface option
-- [ ] Bulk command operations
-
-### Phase 4: Enterprise Features
-- [ ] Device inventory management
-- [ ] Automated network documentation
-- [ ] Template-based configurations
-- [ ] Integration with network monitoring tools
-
 ## Project Structure
 
 ```
@@ -226,7 +180,7 @@ AIConsole/
   <a href="https://github.com/GodSci3nc3">GitHub</a> | 
   <a href="mailto:rosalesvelazquezarturo@email.com">Email</a>
   
-  <p>lease reach out through GitHub or email for any questions.</p>
+  <p>Please reach out through GitHub or email for any questions.</p>
 </div>
 
 

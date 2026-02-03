@@ -680,13 +680,7 @@ class NetworkConsole:
     
     def toggle_connection(self):
         if self.connected:
-            self.connected = False
-            self.current_hostname = ""
-            self.update_prompt()
-            self.connect_button.config(text="Connect", bg=BUTTON_BG, fg=BUTTON_TEXT)
-            self.status_indicator.itemconfig(1, fill="#666666")
-            self.status_label.config(text="Desconectado")
-            self.update_terminal(f"Conexion cerrada.", "error")
+            self.disconnect()
         else:
             conn_type = self.connection_type_var.get()
             
@@ -696,6 +690,27 @@ class NetworkConsole:
                 self.connect_serial()
             else:
                 self.update_terminal(f"Tipo de conexion {conn_type} no implementado aun.", "error")
+    
+    def disconnect(self):
+        """Disconnect from device and clear state"""
+        try:
+            response = requests.post(f"{self.backend_url}/disconnect", timeout=5)
+            if response.ok:
+                self.connected = False
+                self.current_hostname = ""
+                self.update_prompt()
+                self.connect_button.config(text="Connect", bg=BUTTON_BG, fg=BUTTON_TEXT)
+                self.status_indicator.itemconfig(1, fill="#666666")
+                self.status_label.config(text="Desconectado")
+                self.update_terminal(f"Conexion cerrada.", "success")
+        except Exception as e:
+            self.connected = False
+            self.current_hostname = ""
+            self.update_prompt()
+            self.connect_button.config(text="Connect", bg=BUTTON_BG, fg=BUTTON_TEXT)
+            self.status_indicator.itemconfig(1, fill="#666666")
+            self.status_label.config(text="Desconectado")
+            self.update_terminal(f"Desconectado (error: {str(e)})", "error")
     
     def show_ssh_credentials_dialog(self):
         """Show dialog to get SSH credentials"""

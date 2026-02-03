@@ -4,10 +4,18 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
 const execAsync = promisify(exec);
+
+let serialConnection = null;
+let sshConnection = null;
+let connectionState = {
+  type: null,
+  connected: false,
+  credentials: {},
+  lastPrompt: 'Switch>'
+};
 
 // Function to extract commands marked with CMD: prefix
 function extractCommands(rawOutput) {
@@ -514,11 +522,12 @@ async function callOllamaModel(prompt) {
 */
 
 // Function to execute commands on serial device
-async function executeOnSerial(commands) {
+async function executeOnSerial(commands, keepAlive = false) {
   try {
     console.log('Executing commands on serial device:', commands);
     
-    const { stdout, stderr } = await execAsync(`python3 serial_executor.py '${commands}'`);
+    const keepAliveFlag = keepAlive ? 'true' : 'false';
+    const { stdout, stderr } = await execAsync(`python3 serial_executor.py '${commands}' ${keepAliveFlag}`);
     
     if (stderr) {
       console.error('Serial execution stderr:', stderr);
@@ -537,15 +546,16 @@ async function executeOnSerial(commands) {
 }
 
 // Function to execute commands via SSH
-async function executeOnSSH(commands, host, username, password) {
+async function executeOnSSH(commands, host, username, password, keepAlive = false) {
   try {
     console.log('Executing commands via SSH:', commands);
     
     const escapedCmd = commands.replace(/'/g, "'\\''");
     const escapedPass = password.replace(/'/g, "'\\''");
+    const keepAliveFlag = keepAlive ? 'true' : 'false';
     
     const { stdout, stderr } = await execAsync(
-      `python3 ssh_executor.py '${escapedCmd}' ${host} ${username} '${escapedPass}'`
+      `python3 ssh_executor.py '${escapedCmd}' ${host} ${username} '${escapedPass}' ${keepAliveFlag}`
     );
     
     if (stderr) {
@@ -596,12 +606,7 @@ app.post('/comando', async (req, res) => {
   try {
     console.log('Sending to OpenRouter API...');
     
-    let switchPrompt = 'Switch>';
-    if (executeSerial) {
-      console.log('Getting current switch state...');
-      switchPrompt = await getCurrentPrompt();
-      console.log('Current switch prompt:', switchPrompt);
-    }
+    const switchPrompt = connectionState.lastPrompt || 'Switch>';
     
     const generatedCommands = await callOpenRouterModel(prompt, switchPrompt);
     

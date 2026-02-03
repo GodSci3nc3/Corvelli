@@ -8,17 +8,22 @@ import random
 from PIL import Image, ImageTk
 import os
 
-# Colores y estilos
-DARK_BG = "#1E1E2E"
-LIGHT_TEXT = "#CDD6F4"
-ACCENT_COLOR = "#89B4FA"
-SUCCESS_COLOR = "#A6E3A1"
-ERROR_COLOR = "#F38BA8"
-COMMAND_COLOR = "#FAB387"
-OUTPUT_COLOR = "#89DCEB"
-BORDER_COLOR = "#313244"
-TERMINAL_BG = "#11111B"
-HIGHLIGHT_COLOR = "#F5C2E7"
+# Colors and styles - Black & White theme
+DARK_BG = "#000000"
+LIGHT_TEXT = "#FFFFFF"
+ACCENT_COLOR = "#FFFFFF"
+SUCCESS_COLOR = "#FFFFFF"
+ERROR_COLOR = "#CCCCCC"
+COMMAND_COLOR = "#FFFFFF"
+OUTPUT_COLOR = "#E0E0E0"
+BORDER_COLOR = "#333333"
+TERMINAL_BG = "#000000"
+HIGHLIGHT_COLOR = "#FFFFFF"
+BUTTON_BG = "#FFFFFF"
+BUTTON_TEXT = "#000000"
+
+MAIN_FONT = "DejaVu Sans"
+MONO_FONT = "Liberation Mono"
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -40,7 +45,7 @@ class ToolTip:
         label = tk.Label(tw, text=self.text, justify=tk.LEFT,
                          background=DARK_BG, foreground=LIGHT_TEXT,
                          relief=tk.SOLID, borderwidth=1,
-                         font=("Segoe UI", 9, "normal"))
+                         font=(MAIN_FONT, 10, "normal"))
         label.pack(padx=4, pady=4)
 
     def hide_tip(self, event=None):
@@ -65,9 +70,14 @@ class NetworkConsole:
         self.ssh_host = ""
         self.ssh_username = ""
         self.ssh_password = ""
+        self.current_hostname = ""
         self.history = []
         self.history_index = 0
         self.ai_mode = False
+        self.typewriter_active = False
+        self.typewriter_buffer = ""
+        self.typewriter_index = 0
+        self.typewriter_tag = None
         
         # Cargar iconos
         self.icons = self.load_icons()
@@ -75,11 +85,7 @@ class NetworkConsole:
         # Crear la interfaz
         self.create_menu()
         self.create_main_layout()
-                
-        # Configuración inicial y mensajes de bienvenida
-        self.display_welcome_message()
         
-        # Vincular las teclas
         self.bind_keys()
         
         # Simular estado inicial
@@ -156,38 +162,65 @@ class NetworkConsole:
         info_frame = tk.Frame(self.top_frame, bg=DARK_BG)
         info_frame.pack(fill=tk.X)
         
-        # Tipo de dispositivo
         self.device_type_var = tk.StringVar(value="Router")
-        device_type_label = tk.Label(info_frame, text="Tipo:", bg=DARK_BG, fg=LIGHT_TEXT)
+        device_type_label = tk.Label(info_frame, text="Type:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
         device_type_label.pack(side=tk.LEFT, padx=(0, 5))
         device_type_combo = ttk.Combobox(info_frame, textvariable=self.device_type_var, 
-                                          values=["Router", "Switch", "Firewall"], width=10, state="readonly")
+                                          values=["Router", "Switch", "Firewall"], width=10, state="readonly", font=(MAIN_FONT, 11))
         device_type_combo.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Nombre del dispositivo
         self.device_name_var = tk.StringVar(value="Router1")
-        device_name_label = tk.Label(info_frame, text="Nombre:", bg=DARK_BG, fg=LIGHT_TEXT)
+        device_name_label = tk.Label(info_frame, text="Name:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
         device_name_label.pack(side=tk.LEFT, padx=(10, 5))
-        device_name_entry = tk.Entry(info_frame, textvariable=self.device_name_var, width=15)
+        device_name_entry = tk.Entry(info_frame, textvariable=self.device_name_var, width=15, font=(MAIN_FONT, 11))
         device_name_entry.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Tipo de conexión
         self.connection_type_var = tk.StringVar(value="SSH")
-        connection_type_label = tk.Label(info_frame, text="Conexión:", bg=DARK_BG, fg=LIGHT_TEXT)
+        connection_type_label = tk.Label(info_frame, text="Connection:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
         connection_type_label.pack(side=tk.LEFT, padx=(10, 5))
         connection_type_combo = ttk.Combobox(info_frame, textvariable=self.connection_type_var, 
-                                              values=["SSH", "Telnet", "Console"], width=10, state="readonly")
+                                              values=["SSH", "Telnet", "Console"], width=10, state="readonly", font=(MAIN_FONT, 11))
         connection_type_combo.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Botón de conexión
-        self.connect_button = tk.Button(info_frame, text="Conectar", command=self.toggle_connection, 
-                                         bg=ACCENT_COLOR, fg=DARK_BG, activebackground=SUCCESS_COLOR)
+        self.connect_button = tk.Button(info_frame, text="Connect", command=self.toggle_connection, 
+                                         bg=BUTTON_BG, fg=BUTTON_TEXT, activebackground="#DDDDDD", bd=1, font=(MAIN_FONT, 11, "bold"), padx=15, pady=5)
+        self.connect_button.pack(side=tk.RIGHT, padx=5)
+        
+        self.status_indicator = tk.Canvas(info_frame, width=15, height=15, bg=DARK_BG, highlightthickness=0)
+        self.status_indicator.pack(side=tk.RIGHT, padx=5)
+        self.status_indicator.create_oval(2, 2, 13, 13, fill="#666666", outline="")
+    
+    def bind_keys(self):
+        self.command_entry.bind("<Return>", lambda event: self.send_command())
+        
+        self.device_type_var = tk.StringVar(value="Router")
+        device_type_label = tk.Label(info_frame, text="Type:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
+        device_type_label.pack(side=tk.LEFT, padx=(0, 5))
+        device_type_combo = ttk.Combobox(info_frame, textvariable=self.device_type_var, 
+                                          values=["Router", "Switch", "Firewall"], width=10, state="readonly", font=(MAIN_FONT, 11))
+        device_type_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.device_name_var = tk.StringVar(value="Router1")
+        device_name_label = tk.Label(info_frame, text="Name:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
+        device_name_label.pack(side=tk.LEFT, padx=(10, 5))
+        device_name_entry = tk.Entry(info_frame, textvariable=self.device_name_var, width=15, font=(MAIN_FONT, 11))
+        device_name_entry.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.connection_type_var = tk.StringVar(value="SSH")
+        connection_type_label = tk.Label(info_frame, text="Connection:", bg=DARK_BG, fg=LIGHT_TEXT, font=(MAIN_FONT, 11))
+        connection_type_label.pack(side=tk.LEFT, padx=(10, 5))
+        connection_type_combo = ttk.Combobox(info_frame, textvariable=self.connection_type_var, 
+                                              values=["SSH", "Telnet", "Console"], width=10, state="readonly", font=(MAIN_FONT, 11))
+        connection_type_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.connect_button = tk.Button(info_frame, text="Connect", command=self.toggle_connection, 
+                                         bg=BUTTON_BG, fg=BUTTON_TEXT, activebackground="#DDDDDD", bd=1, font=(MAIN_FONT, 11, "bold"), padx=15, pady=5)
         self.connect_button.pack(side=tk.RIGHT, padx=5)
         
         # Indicador de estado
         self.status_indicator = tk.Canvas(info_frame, width=15, height=15, bg=DARK_BG, highlightthickness=0)
         self.status_indicator.pack(side=tk.RIGHT, padx=5)
-        self.status_indicator.create_oval(2, 2, 13, 13, fill=ERROR_COLOR, outline="")
+        self.status_indicator.create_oval(2, 2, 13, 13, fill="#666666", outline="")
     
     def create_terminal(self):
         terminal_frame = tk.Frame(self.mid_frame, bg=DARK_BG, bd=1, relief=tk.SUNKEN)
@@ -228,18 +261,16 @@ class NetworkConsole:
         input_frame = tk.Frame(self.bottom_frame, bg=DARK_BG)
         input_frame.pack(fill=tk.X, pady=5)
         
-        # Etiqueta para mostrar el prompt
-        self.prompt_label = tk.Label(input_frame, text=f"{self.device_name}# ", 
-                                      bg=DARK_BG, fg=ACCENT_COLOR, font=("Courier New", 10))
+        self.prompt_label = tk.Label(input_frame, text="", 
+                                      bg=DARK_BG, fg=ACCENT_COLOR, font=(MONO_FONT, 11))
         self.prompt_label.pack(side=tk.LEFT)
         
-        # Entrada de comandos
         self.command_entry = tk.Entry(
             input_frame,
             bg=TERMINAL_BG,
             fg=LIGHT_TEXT,
             insertbackground=LIGHT_TEXT,
-            font=("Courier New", 10),
+            font=(MONO_FONT, 11),
             bd=0,
             highlightthickness=1,
             highlightbackground=BORDER_COLOR,
@@ -251,29 +282,30 @@ class NetworkConsole:
         # Botón para activar/desactivar modo AI
         self.ai_toggle_button = tk.Button(
             input_frame,
-            text="🤖 AI: OFF",
+            text="AI: OFF",
             command=self.toggle_ai_mode,
-            bg=BORDER_COLOR,
-            fg=LIGHT_TEXT,
-            activebackground=ACCENT_COLOR,
-            bd=0,
-            padx=15,
-            font=("Segoe UI", 9, "bold"),
+            bg=BUTTON_BG,
+            fg=BUTTON_TEXT,
+            activebackground="#DDDDDD",
+            bd=1,
+            padx=20,
+            pady=5,
+            font=(MAIN_FONT, 11, "bold"),
             relief=tk.FLAT
         )
         self.ai_toggle_button.pack(side=tk.RIGHT, padx=5)
         
-        # Botón de envío
         self.send_button = tk.Button(
             input_frame,
-            text="Enviar",
+            text="Send",
             command=self.send_command,
-            bg=ACCENT_COLOR,
-            fg=DARK_BG,
-            activebackground=SUCCESS_COLOR,
-            bd=0,
-            padx=10,
-            font=("Segoe UI", 9)
+            bg=BUTTON_BG,
+            fg=BUTTON_TEXT,
+            activebackground="#DDDDDD",
+            bd=1,
+            padx=15,
+            pady=5,
+            font=(MAIN_FONT, 11)
         )
         self.send_button.pack(side=tk.RIGHT)
         
@@ -292,24 +324,16 @@ class NetworkConsole:
         self.command_count = tk.Label(status_frame, text="Comandos: 0", bg=BORDER_COLOR, fg=LIGHT_TEXT, anchor=tk.E, padx=10)
         self.command_count.pack(side=tk.RIGHT)
     
-    def display_welcome_message(self):
-        welcome_message = """
-========================================================================
-              AIConsole - Control Inteligente de Switches
-========================================================================
-"""
-        self.update_terminal(welcome_message, "system")
-    
     def bind_keys(self):
-        # Tecla Enter para enviar comando
         self.command_entry.bind("<Return>", lambda event: self.send_command())
-        
-        # Teclas de flecha para historial
         self.command_entry.bind("<Up>", lambda event: self.navigate_history(-1))
         self.command_entry.bind("<Down>", lambda event: self.navigate_history(1))
-        
-        # Ctrl+L para limpiar la pantalla
         self.root.bind("<Control-l>", lambda event: self.clear_terminal())
+    
+    def clear_terminal(self):
+        self.terminal.config(state=tk.NORMAL)
+        self.terminal.delete(1.0, tk.END)
+        self.terminal.config(state=tk.DISABLED)
     
     def toggle_ai_mode(self):
         """Activar/desactivar modo AI"""
@@ -317,15 +341,15 @@ class NetworkConsole:
         
         if self.ai_mode:
             self.ai_toggle_button.config(
-                text="🤖 AI: ON",
-                bg=SUCCESS_COLOR,
-                fg=DARK_BG
+                text="AI: ON",
+                bg=BUTTON_TEXT,
+                fg=BUTTON_BG
             )
         else:
             self.ai_toggle_button.config(
-                text="🤖 AI: OFF",
-                bg=BORDER_COLOR,
-                fg=LIGHT_TEXT
+                text="AI: OFF",
+                bg=BUTTON_BG,
+                fg=BUTTON_TEXT
             )
         
         self.update_command_tooltip()
@@ -353,6 +377,51 @@ class NetworkConsole:
             self.terminal.insert(tk.END, text + "\n")
         self.terminal.see(tk.END)
         self.terminal.config(state=tk.DISABLED)
+    
+    def typewriter_effect(self, text, tag=None, speed=15):
+        """Display text with typewriter effect"""
+        if self.typewriter_active:
+            self.typewriter_active = False
+            try:
+                self.root.after_cancel(self.typewriter_timer)
+            except:
+                pass
+        
+        self.typewriter_buffer = text
+        self.typewriter_index = 0
+        self.typewriter_tag = tag
+        self.typewriter_speed = speed
+        self.typewriter_active = True
+        
+        self._typewriter_step()
+    
+    def _typewriter_step(self):
+        """Internal method to write one character"""
+        if not self.typewriter_active:
+            return
+        
+        if self.typewriter_index < len(self.typewriter_buffer):
+            char = self.typewriter_buffer[self.typewriter_index]
+            
+            self.terminal.config(state=tk.NORMAL)
+            self.terminal.insert(tk.END, char, self.typewriter_tag)
+            self.terminal.see(tk.END)
+            self.terminal.config(state=tk.DISABLED)
+            
+            self.typewriter_index += 1
+            self.typewriter_timer = self.root.after(self.typewriter_speed, self._typewriter_step)
+        else:
+            self.typewriter_active = False
+            self.terminal.config(state=tk.NORMAL)
+            self.terminal.insert(tk.END, "\n")
+            self.terminal.config(state=tk.DISABLED)
+    
+    def update_prompt(self):
+        """Update command prompt with current hostname"""
+        if self.current_hostname:
+            self.prompt_label.config(text=f"{self.current_hostname}# ")
+        else:
+            self.prompt_label.config(text="")
     
     def send_command(self):
         command = self.command_entry.get().strip()
@@ -428,12 +497,12 @@ class NetworkConsole:
                     # Verificar si hubo error de rate limit en el resultado
                     if result.get('error') and 'rate' in str(result.get('error')).lower():
                         self.update_terminal("", "error")
-                        self.update_terminal("⚠️  ERROR: LÍMITE DE VELOCIDAD ALCANZADO", "error")
+                        self.update_terminal(" ERROR: LÍMITE DE VELOCIDAD ALCANZADO", "error")
                         self.update_terminal("El servicio de IA está temporalmente limitado.", "system")
                         self.update_terminal("", "system")
                         self.update_terminal("Opciones:", "system")
                         self.update_terminal("1. Espera 1 minuto e intenta de nuevo", "system")
-                        self.update_terminal("2. Cambia a modo Putty (🤖 AI: OFF)", "system")
+                        self.update_terminal("2. Cambia a modo Putty ( AI: OFF)", "system")
                         self.update_terminal("3. Usa comandos Cisco directos", "system")
                         self.update_terminal("", "system")
                         return
@@ -448,17 +517,19 @@ class NetworkConsole:
                             cmd = cmd_result.get('command', '')
                             response_text = cmd_result.get('response', '')
                             
-                            # Mostrar comando
                             if cmd:
                                 self.update_terminal(f"    {cmd}", "command")
                             
-                            # Mostrar respuesta indentada
                             if response_text:
+                                formatted_response = ""
                                 for line in response_text.split('\\n'):
                                     if line.strip():
-                                        self.update_terminal(f"    {line}", "output")
+                                        formatted_response += f"    {line}\n"
+                                
+                                if formatted_response:
+                                    self.typewriter_effect(formatted_response.rstrip(), "output", speed=5)
                             
-                            self.update_terminal("", "system")  # Línea en blanco entre comandos
+                            self.update_terminal("", "system")
                     
                     # Para modo Putty directo
                     elif 'results' in result:
@@ -467,17 +538,19 @@ class NetworkConsole:
                             cmd = cmd_result.get('command', '')
                             response_text = cmd_result.get('response', '')
                             
-                            # Mostrar comando
                             if cmd:
                                 self.update_terminal(f"    {cmd}", "command")
                             
-                            # Mostrar respuesta indentada
                             if response_text:
+                                formatted_response = ""
                                 for line in response_text.split('\\n'):
                                     if line.strip():
-                                        self.update_terminal(f"    {line}", "output")
+                                        formatted_response += f"    {line}\n"
+                                
+                                if formatted_response:
+                                    self.typewriter_effect(formatted_response.rstrip(), "output", speed=5)
                             
-                            self.update_terminal("", "system")  # Línea en blanco entre comandos
+                            self.update_terminal("", "system")
                     
                 else:
                     # Error en la ejecución
@@ -608,8 +681,10 @@ class NetworkConsole:
     def toggle_connection(self):
         if self.connected:
             self.connected = False
-            self.connect_button.config(text="Conectar", bg=ACCENT_COLOR)
-            self.status_indicator.itemconfig(1, fill=ERROR_COLOR)
+            self.current_hostname = ""
+            self.update_prompt()
+            self.connect_button.config(text="Connect", bg=BUTTON_BG, fg=BUTTON_TEXT)
+            self.status_indicator.itemconfig(1, fill="#666666")
             self.status_label.config(text="Desconectado")
             self.update_terminal(f"Conexion cerrada.", "error")
         else:
@@ -633,8 +708,8 @@ class NetworkConsole:
         
         credentials = {'host': '', 'username': '', 'password': '', 'confirmed': False}
         
-        tk.Label(dialog, text="Configuracion SSH", bg=DARK_BG, fg=LIGHT_TEXT, 
-                font=("Segoe UI", 12, "bold")).pack(pady=10)
+        tk.Label(dialog, text="SSH Configuration", bg=DARK_BG, fg=LIGHT_TEXT, 
+                font=("Inter", 12, "bold")).pack(pady=10)
         
         frame = tk.Frame(dialog, bg=DARK_BG)
         frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
@@ -706,9 +781,12 @@ class NetworkConsole:
                 
                 if result.get('connected'):
                     self.connected = True
-                    self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
-                    self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
+                    self.connect_button.config(text="Disconnect", bg=BUTTON_TEXT, fg=BUTTON_BG)
+                    self.status_indicator.itemconfig(1, fill=LIGHT_TEXT)
                     self.status_label.config(text=f"Conectado via SSH ({self.ssh_host})")
+                    
+                    self.current_hostname = result.get('hostname', self.ssh_host.split('.')[0])
+                    self.update_prompt()
                     
                     self.update_terminal("", "system")
                     self.update_terminal("=" * 60, "success")
@@ -742,9 +820,12 @@ class NetworkConsole:
                 
                 if result.get('connected'):
                     self.connected = True
-                    self.connect_button.config(text="Desconectar", bg=SUCCESS_COLOR)
-                    self.status_indicator.itemconfig(1, fill=SUCCESS_COLOR)
+                    self.connect_button.config(text="Disconnect", bg=BUTTON_TEXT, fg=BUTTON_BG)
+                    self.status_indicator.itemconfig(1, fill=LIGHT_TEXT)
                     self.status_label.config(text="Conectado via USB Serial (/dev/ttyUSB0)")
+                    
+                    self.current_hostname = result.get('hostname', 'Switch')
+                    self.update_prompt()
                     
                     self.update_terminal("", "system")
                     self.update_terminal("=" * 60, "success")
@@ -846,7 +927,7 @@ class NetworkConsole:
             help_window,
             bg=TERMINAL_BG,
             fg=LIGHT_TEXT,
-            font=("Courier New", 10),
+            font=("SF Mono", 10),
             wrap=tk.WORD,
             padx=10,
             pady=10

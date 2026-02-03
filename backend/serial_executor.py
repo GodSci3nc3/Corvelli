@@ -30,47 +30,38 @@ class SerialExecutor:
                 stopbits=serial.STOPBITS_ONE,
                 timeout=self.timeout
             )
-            time.sleep(2)
+            time.sleep(0.5)
             
-            # Send multiple enters to wake up device
-            for _ in range(3):
+            for _ in range(2):
                 self.connection.write(b'\r\n')
-                time.sleep(0.3)
+                time.sleep(0.1)
             
-            # Wait for initial output
-            time.sleep(2)
+            time.sleep(0.5)
             initial_output = ""
             if self.connection.in_waiting:
                 initial_output = self.connection.read(self.connection.in_waiting).decode('utf-8', errors='ignore')
             
-            # Check if password is required
             if 'Password:' in initial_output or 'password:' in initial_output:
-                # Send password (empty string + Enter)
                 self.connection.write(f"{self.password}\r\n".encode('utf-8'))
-                time.sleep(1)
+                time.sleep(0.3)
                 
-                # Read response
                 if self.connection.in_waiting:
                     auth_response = self.connection.read(self.connection.in_waiting).decode('utf-8', errors='ignore')
                     
-                    # Check if we got to a prompt
                     if '>' in auth_response or '#' in auth_response:
                         self.authenticated = True
                         
-                        # Try to enter privileged mode
                         self.connection.write(b"enable\r\n")
-                        time.sleep(1)
+                        time.sleep(0.3)
                         if self.connection.in_waiting:
                             enable_response = self.connection.read(self.connection.in_waiting).decode('utf-8', errors='ignore')
                             
-                            # If it asks for password again, send empty
                             if 'Password:' in enable_response:
                                 self.connection.write(f"{self.password}\r\n".encode('utf-8'))
-                                time.sleep(1)
+                                time.sleep(0.3)
                                 if self.connection.in_waiting:
                                     self.connection.read(self.connection.in_waiting)
             else:
-                # No password required, try to get to prompt
                 self.authenticated = True
             
             return True
@@ -87,9 +78,8 @@ class SerialExecutor:
             # Clear buffer
             self.connection.reset_input_buffer()
             
-            # Send enter to get prompt
             self.connection.write(b"\r\n")
-            time.sleep(0.5)
+            time.sleep(0.2)
             
             # Read response
             response = ""
@@ -148,26 +138,24 @@ class SerialExecutor:
         except Exception as e:
             return f"Command error: {e}"
     
-    def execute_commands(self, commands_string):
+    def execute_commands(self, commands_string, keep_alive=False):
         """Execute multiple commands from string"""
-        if not self.connect():
-            return {"success": False, "error": "Failed to connect"}
+        if not self.connection or not self.authenticated:
+            if not self.connect():
+                return {"success": False, "error": "Failed to connect"}
         
         commands = [cmd.strip() for cmd in commands_string.split('\n') if cmd.strip()]
         results = []
         
         try:
-            # Get current prompt state
             current_prompt = self.get_current_prompt()
             
-            # Execute commands as-is, without forcing any mode
             for command in commands:
                 response = self.send_command(command)
                 results.append({
                     "command": command,
                     "response": response
                 })
-                # Minimal delay between commands - only 100ms instead of 500ms
                 time.sleep(0.1)
             
             return {
@@ -180,18 +168,31 @@ class SerialExecutor:
             return {"success": False, "error": str(e)}
         
         finally:
-            if self.connection:
+            if not keep_alive and self.connection:
                 self.connection.close()
+                self.authenticated = False
+
+    def close_connection(self):
+        """Close the serial connection"""
+        if self.connection:
+            try:
+                self.connection.close()
+                self.authenticated = False
+                return {"success": True, "message": "Connection closed"}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        return {"success": True, "message": "No active connection"}
 
 def main():
     """Main function for CLI usage"""
     if len(sys.argv) < 2:
-        print("Usage: python serial_executor.py '<commands>'")
+        print("Usage: python serial_executor.py '<commands>' [keep_alive]")
         sys.exit(1)
     
     commands = sys.argv[1]
+    keep_alive = len(sys.argv) > 2 and sys.argv[2].lower() == 'true'
     executor = SerialExecutor()
-    result = executor.execute_commands(commands)
+    result = executor.execute_commands(commands, keep_alive=keep_alive)
     print(json.dumps(result, indent=2))
 
 if __name__ == "__main__":

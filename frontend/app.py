@@ -8,22 +8,22 @@ import random
 from PIL import Image, ImageTk
 import os
 
-# Colors and styles - Black & White theme
-DARK_BG = "#000000"
-LIGHT_TEXT = "#FFFFFF"
-ACCENT_COLOR = "#FFFFFF"
-SUCCESS_COLOR = "#FFFFFF"
-ERROR_COLOR = "#CCCCCC"
+# Colors - Soft Black & White theme
+DARK_BG = "#0A0A0A"
+LIGHT_TEXT = "#F5F5F5"
+ACCENT_COLOR = "#E8E8E8"
+SUCCESS_COLOR = "#F0F0F0"
+ERROR_COLOR = "#C8C8C8"
 COMMAND_COLOR = "#FFFFFF"
-OUTPUT_COLOR = "#E0E0E0"
-BORDER_COLOR = "#333333"
-TERMINAL_BG = "#000000"
-HIGHLIGHT_COLOR = "#FFFFFF"
-BUTTON_BG = "#FFFFFF"
-BUTTON_TEXT = "#000000"
+OUTPUT_COLOR = "#D8D8D8"
+BORDER_COLOR = "#2A2A2A"
+TERMINAL_BG = "#0F0F0F"
+HIGHLIGHT_COLOR = "#F8F8F8"
+BUTTON_BG = "#F0F0F0"
+BUTTON_TEXT = "#1A1A1A"
 
-MAIN_FONT = "DejaVu Sans"
-MONO_FONT = "Liberation Mono"
+MAIN_FONT = "Cascadia Code"
+MONO_FONT = "Cascadia Code"
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -57,7 +57,7 @@ class ToolTip:
 class NetworkConsole:
     def __init__(self, root):
         self.root = root
-        self.root.title("IA en Consola - Asistente de Redes")
+        self.root.title("Corvelli")
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
         self.root.configure(bg=DARK_BG)

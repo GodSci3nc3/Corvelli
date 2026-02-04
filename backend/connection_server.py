@@ -124,17 +124,36 @@ async def execute_command(req: ExecuteRequest):
         try:
             if isinstance(executor, SSHExecutor):
                 output = executor.execute_commands(req.command)
+                
+                # Extract text from response
+                if isinstance(output, dict) and "results" in output:
+                    text_output = "\n".join([r.get("response", "") for r in output["results"]])
+                else:
+                    text_output = str(output)
+                
                 return {
                     "success": True,
-                    "output": output,
+                    "output": text_output,
                     "mode": executor.current_mode
                 }
             
             elif isinstance(executor, SerialExecutor):
                 output = executor.execute_commands(req.command)
+                
+                # Extract text from response
+                if isinstance(output, dict) and output.get("success") and "results" in output:
+                    text_output = "\n".join([r.get("response", "") for r in output["results"]])
+                elif isinstance(output, dict) and "error" in output:
+                    return {
+                        "success": False,
+                        "error": output["error"]
+                    }
+                else:
+                    text_output = str(output)
+                
                 return {
                     "success": True,
-                    "output": output
+                    "output": text_output
                 }
             
             else:

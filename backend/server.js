@@ -744,6 +744,50 @@ app.post('/ssh-connect', async (req, res) => {
   }
 });
 
+// Serial Connect endpoint
+app.post('/serial-connect', async (req, res) => {
+  const { port, baudrate, password } = req.body;
+  
+  console.log('Serial connection request:', port, baudrate);
+  
+  try {
+    const response = await fetch(`${PYTHON_SERVER}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: connectionState.connectionId,
+        connection_type: 'serial',
+        serial_port: port || '/dev/ttyUSB0',
+        baudrate: baudrate || 9600,
+        password: password || ''
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      connectionState.type = 'serial';
+      connectionState.connected = true;
+      
+      res.json({
+        success: true,
+        message: result.message
+      });
+    } else {
+      res.json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('Serial connection error:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // SSH Execute endpoint
 app.post('/ssh-execute', async (req, res) => {
   const { command, useAI, host, username, password } = req.body;

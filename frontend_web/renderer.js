@@ -144,6 +144,25 @@ async function connectSerial() {
     try {
         addToTerminal('Connecting via Serial...', 'command');
         
+        // First, establish connection to Python server
+        const connectResponse = await fetch(`${BACKEND_URL}/serial-connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                port: '/dev/ttyUSB0',
+                baudrate: 9600,
+                password: ''
+            })
+        });
+        
+        const connectData = await connectResponse.json();
+        
+        if (!connectData.success) {
+            addToTerminal(`Connection failed: ${connectData.error}`, 'error');
+            return;
+        }
+        
+        // Now execute test command
         const response = await fetch(`${BACKEND_URL}/execute`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -160,9 +179,11 @@ async function connectSerial() {
             updatePrompt();
             updateStatus(true, 'Connected via Serial');
             addToTerminal('Connected successfully', 'success');
-            addToTerminal(data.output, 'result');
+            if (data.output && typeof data.output === 'string') {
+                addToTerminal(data.output, 'result');
+            }
         } else {
-            addToTerminal(`Connection failed: ${data.error}`, 'error');
+            addToTerminal(`Execution failed: ${data.error}`, 'error');
         }
     } catch (error) {
         addToTerminal(`Error: ${error.message}`, 'error');

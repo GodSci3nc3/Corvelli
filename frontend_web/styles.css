@@ -1,0 +1,291 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --dark-bg: #0A0A0A;
+    --light-text: #F5F5F5;
+    --accent: #E8E8E8;
+    --success: #4CAF50;
+    --error: #F44336;
+    --border: #2A2A2A;
+    --terminal-bg: #0F0F0F;
+    --button-bg: #F0F0F0;
+    --button-text: #1A1A1A;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--light-text);
+    overflow: hidden;
+    height: 100vh;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 10px;
+}
+
+/* Top Bar */
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: var(--dark-bg);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 10px;
+}
+
+.device-config {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.field-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.field-group label {
+    font-size: 11px;
+    color: var(--accent);
+}
+
+.select-input,
+.text-input {
+    background-color: var(--terminal-bg);
+    color: var(--light-text);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+}
+
+.select-input:focus,
+.text-input:focus {
+    border-color: var(--accent);
+}
+
+.text-input {
+    width: 150px;
+}
+
+/* Buttons */
+.btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent);
+}
+
+.btn-secondary {
+    background-color: var(--terminal-bg);
+    color: var(--light-text);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    border-color: var(--accent);
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+}
+
+.btn-icon:hover {
+    color: var(--light-text);
+}
+
+/* Status */
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #666;
+    transition: background-color 0.3s;
+}
+
+.status-dot.connected {
+    background-color: var(--success);
+    box-shadow: 0 0 8px var(--success);
+}
+
+#status-text {
+    font-size: 11px;
+    color: var(--accent);
+}
+
+/* Terminal */
+.terminal-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--dark-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--accent);
+}
+
+.terminal-output {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace;
+}
+
+.terminal-output::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terminal-output::-webkit-scrollbar-track {
+    background: var(--terminal-bg);
+}
+
+.terminal-output::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.terminal-output::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+/* Terminal text styles */
+.output-command {
+    color: var(--light-text);
+    font-weight: bold;
+}
+
+.output-result {
+    color: var(--accent);
+}
+
+.output-error {
+    color: var(--error);
+}
+
+.output-success {
+    color: var(--success);
+}
+
+/* Input Area */
+.input-container {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+    background-color: var(--dark-bg);
+    border-top: 1px solid var(--border);
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background-color: var(--terminal-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.prompt {
+    color: var(--success);
+    margin-right: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.command-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--light-text);
+    font-size: 12'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace
+    font-family: inherit;
+    outline: none;
+}
+
+.command-input::placeholder {
+    color: #666;
+}
+
+/* Footer */
+.footer {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background-color: var(--dark-bg);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: #666;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.terminal-line {
+    animation: fadeIn 0.2s ease-in;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+    .device-config {
+        flex-wrap: wrap;
+    }
+}

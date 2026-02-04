@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src http://localhost:3000">
+    <title>Corvelli</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="device-config">
+                <div class="field-group">
+                    <label for="device-type">Type:</label>
+                    <select id="device-type" class="select-input">
+                        <option value="Router">Router</option>
+                        <option value="Switch">Switch</option>
+                        <option value="Firewall">Firewall</option>
+                    </select>
+                </div>
+                
+                <div class="field-group">
+                    <label for="device-name">Name:</label>
+                    <input type="text" id="device-name" class="text-input" value="Router1" placeholder="Device name">
+                </div>
+                
+                <div class="field-group">
+                    <label for="connection-type">Connection:</label>
+                    <select id="connection-type" class="select-input">
+                        <option value="SSH">SSH</option>
+                        <option value="Console">Console</option>
+                        <option value="Telnet">Telnet</option>
+                    </select>
+                </div>
+                
+                <button id="connect-btn" class="btn btn-primary">Connect</button>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">Disconnected</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Area -->
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <span>Terminal</span>
+                <button id="clear-btn" class="btn-icon" title="Clear terminal">✕</button>
+            </div>
+            <div id="terminal" class="terminal-output"></div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-container">
+            <div class="prompt-container">
+                <span id="prompt" class="prompt"></span>
+                <input type="text" id="command-input" class="command-input" placeholder="Enter command..." autocomplete="off">
+            </div>
+            <button id="send-btn" class="btn btn-primary">Send</button>
+            <button id="ai-toggle" class="btn btn-secondary" data-enabled="false">AI: OFF</button>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <span id="connection-status">Disconnected</span>
+            <span id="command-counter">Commands: 0</span>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "corvelli",
+  "version": "1.0.0",
+  "description": "Network Assistant with AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["network", "cisco", "ai", "assistant"],
+  "author": "Arthur",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  }
+}

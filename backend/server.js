@@ -3,18 +3,21 @@ import OpenAI from 'openai';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 
 dotenv.config();
 
 const execAsync = promisify(exec);
 
-let serialConnection = null;
-let sshConnection = null;
+// Python Connection Server URL
+const PYTHON_SERVER = 'http://127.0.0.1:5000';
+
 let connectionState = {
   type: null,
   connected: false,
   credentials: {},
-  lastPrompt: 'Switch>'
+  lastPrompt: 'Switch>',
+  connectionId: 'default'  // ID for persistent connection
 };
 
 // Function to extract commands marked with CMD: prefix
@@ -658,13 +661,34 @@ no shutdown`;
 
 // New endpoint for direct serial execution
 app.post('/execute', async (req, res) => {
-  const commands = req.body.commands;
+  const { command, useAI } = req.body;
   
-  console.log('Direct execution request:', commands);
+  console.log('Direct execution request:', command);
   
   try {
-    const result = await executeOnSerial(commands);
-    res.json(result);
+    // Execute on persistent Python connection
+    const response = await fetch(`${PYTHON_SERVER}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: connectionState.connectionId,
+        command: command
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        output: result.output
+      });
+    } else {
+      res.json({
+        success: false,
+        error: result.error
+      });
+    }
   } catch (error) {
     console.error('Direct execution error:', error);
     res.status(500).json({
@@ -674,24 +698,41 @@ app.post('/execute', async (req, res) => {
   }
 });
 
-// New endpoint for SSH connection test
+// SSH Connect endpoint
 app.post('/ssh-connect', async (req, res) => {
   const { host, username, password } = req.body;
   
-  console.log('SSH connection test:', host, username);
+  console.log('SSH connection request:', host, username);
   
   try {
-    const connected = await testSSHConnection(host, username, password);
+    const response = await fetch(`${PYTHON_SERVER}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: connectionState.connectionId,
+        connection_type: 'ssh',
+        host: host,
+        port: 22,
+        username: username,
+        password: password
+      })
+    });
     
-    if (connected) {
+    const result = await response.json();
+    
+    if (result.success) {
+      connectionState.type = 'ssh';
+      connectionState.connected = true;
+      connectionState.credentials = { host, username, password };
+      
       res.json({
         connected: true,
-        message: `Conectado exitosamente a ${host}`
+        message: result.message
       });
     } else {
       res.json({
         connected: false,
-        error: 'Autenticacion fallida o host no alcanzable'
+        error: result.error
       });
     }
   } catch (error) {
@@ -703,20 +744,111 @@ app.post('/ssh-connect', async (req, res) => {
   }
 });
 
-// New endpoint for direct SSH execution
+// SSH Execute endpoint
 app.post('/ssh-execute', async (req, res) => {
-  const { commands, host, username, password } = req.body;
+  const { command, useAI, host, username, password } = req.body;
   
-  console.log('Direct SSH execution request:', commands);
+  console.log('Direct SSH execution request:', command);
   
   try {
-    const result = await executeOnSSH(commands, host, username, password);
-    res.json(result);
+    // If not connected, connect first
+    if (!connectionState.connected || connectionState.type !== 'ssh') {
+      const connectResponse = await fetch(`${PYTHON_SERVER}/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection_id: connectionState.connectionId,
+          connection_type: 'ssh',
+          host: host,
+          port: 22,
+          username: username,
+          password: password
+        })
+      });
+      
+      const connectResult = await connectResponse.json();
+      if (!connectResult.success) {
+        return res.json({
+          success: false,
+          error: connectResult.error
+        });
+      }
+      
+      connectionState.type = 'ssh';
+      connectionState.connected = true;
+      connectionState.credentials = { host, username, password };
+    }
+    
+    // Execute command
+    const response = await fetch(`${PYTHON_SERVER}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: connectionState.connectionId,
+        command: command
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        output: result.output
+      });
+    } else {
+      res.json({
+        success: false,
+        error: result.error
+      });
+    }
   } catch (error) {
     console.error('Direct SSH execution error:', error);
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Disconnect endpoint
+app.post('/disconnect', async (req, res) => {
+  try {
+    const response = await fetch(`${PYTHON_SERVER}/disconnect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: connectionState.connectionId
+      })
+    });
+    
+    const result = await response.json();
+    
+    connectionState = {
+      type: null,
+      connected: false,
+      credentials: {},
+      lastPrompt: 'Switch>',
+      connectionId: 'default'
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Connection state cleared' 
+    });
+  } catch (error) {
+    // Even if Python server fails, reset local state
+    connectionState = {
+      type: null,
+      connected: false,
+      credentials: {},
+      lastPrompt: 'Switch>',
+      connectionId: 'default'
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Connection state cleared' 
     });
   }
 });
@@ -748,20 +880,6 @@ app.get('/connection-status', async (req, res) => {
       error: error.message 
     });
   }
-});
-
-app.post('/disconnect', (req, res) => {
-  connectionState = {
-    type: null,
-    connected: false,
-    credentials: {},
-    lastPrompt: 'Switch>'
-  };
-  
-  res.json({ 
-    success: true, 
-    message: 'Connection state cleared' 
-  });
 });
 
 app.listen(3000, () => console.log('AIConsole Backend - OpenRouter API + Serial Mode - Port 3000'));

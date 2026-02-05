@@ -663,16 +663,26 @@ no shutdown`;
 app.post('/execute', async (req, res) => {
   const { command, useAI } = req.body;
   
-  console.log('Direct execution request:', command);
+  console.log('Direct execution request:', command, 'useAI:', useAI);
   
   try {
+    let commandToExecute = command;
+    
+    // If AI is enabled, process with AI first
+    if (useAI) {
+      console.log('Processing with AI...');
+      const aiCommands = await callOpenRouterModel(command, connectionState.lastPrompt);
+      commandToExecute = aiCommands;
+      console.log('AI generated:', commandToExecute);
+    }
+    
     // Execute on persistent Python connection
     const response = await fetch(`${PYTHON_SERVER}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         connection_id: connectionState.connectionId,
-        command: command
+        command: commandToExecute
       })
     });
     

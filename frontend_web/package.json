@@ -2,15 +2,80 @@
   "name": "corvelli",
   "version": "1.0.0",
   "description": "Network Assistant with AI",
-  "main": "main.js",
+  "main": "launcher.js",
+  "homepage": "https://github.com/GodSci3nc3/Corvelli",
+  "author": {
+    "name": "Arturo Rosales V.",
+    "email": "rosalesvelazquezarturo@gmail.com"
+  },
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:linux": "electron-builder --linux",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder -mwl"
   },
-  "keywords": ["network", "cisco", "ai", "assistant"],
-  "author": "Arthur",
+  "keywords": [
+    "network",
+    "cisco",
+    "ai",
+    "assistant"
+  ],
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.corvelli.network-assistant",
+    "productName": "Corvelli",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "launcher.js",
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "../backend/**/*",
+      "!../backend/node_modules",
+      "!../backend/__pycache__",
+      "!../backend/*.pyc"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": ["**/*", "!node_modules", "!__pycache__", "!*.pyc"]
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "maintainer": "Arturo Rosales V. <rosalesvelazquezarturo@gmail.com>",
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "assets/icon.icns"
+    }
   }
 }

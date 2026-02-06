@@ -44,10 +44,16 @@ wheels/
 # Build outputs
 frontend_web/dist/
 frontend_web/build.log
+frontend_web/*.AppImage
+frontend_web/*.deb
+frontend_web/*.dmg
+frontend_web/*.exe
+frontend_web/*.zip
 *.AppImage
 *.deb
 *.dmg
 *.exe
+*.zip
 *.msi
 
 # Electron

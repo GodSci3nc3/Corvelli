@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const { app, dialog } = require('electron');
 
-const isDev = !process.env.PORTABLE_EXECUTABLE_DIR && !process.resourcesPath;
-const isPackaged = process.env.PORTABLE_EXECUTABLE_DIR || process.resourcesPath;
+// Better detection: check if we're in packaged app or dev mode
+const isDev = !app.isPackaged;
 
 let backendPath;
 if (isDev) {
@@ -31,6 +31,12 @@ function checkCommand(cmd) {
 }
 
 async function verifyAndSetupDependencies() {
+  // Skip setup in development mode
+  if (isDev) {
+    console.log('[Launcher] Development mode - skipping dependency check');
+    return true;
+  }
+  
   const hasPython = checkCommand(process.platform === 'win32' ? 'python' : 'python3');
   const hasNode = checkCommand('node');
   
@@ -262,8 +268,11 @@ process.on('exit', () => {
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
 
-if (require.main === module) {
-  app.whenReady().then(startServers);
-}
+// Always start when loaded by Electron
+console.log('[Launcher] Waiting for app.whenReady()...');
+app.whenReady().then(() => {
+  console.log('[Launcher] App ready, starting servers...');
+  startServers();
+});
 
 module.exports = { startServers };

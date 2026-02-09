@@ -32,16 +32,25 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+// Only setup app events if this is the main module
+// When required by launcher.js, it will handle app.whenReady()
+if (require.main === module) {
+  app.whenReady().then(createWindow);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
 
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
-});
+  app.on('activate', () => {
+    if (mainWindow === null) {
+      createWindow();
+    }
+  });
+} else {
+  // When imported by launcher, just create the window
+  createWindow();
+}
+
+module.exports = { createWindow };

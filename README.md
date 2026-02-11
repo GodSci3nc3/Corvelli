@@ -6,7 +6,7 @@
     <strong>An intelligent desktop application that translates natural language instructions into precise network commands using artificial intelligence.</strong>
   </p>
 
-  <img src = "https://github.com/user-attachments/assets/a6348c71-f8d8-449a-b550-ee92a7382f71" style= "width: 150px">
+  <img src = "https://github.com/user-attachments/assets/a6348c71-f8d8-449a-b550-ee92a7382f71" style= "width: 450px">
   
   <p align="center">
     <strong>MVP Status: Currently generates accurate commands - Command execution functionality in development</strong>

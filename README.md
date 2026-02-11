@@ -1,4 +1,4 @@
-# CORVELLI - AI NETWORK ASSISTANT
+# Corvelli - AI Network Assistant
 
 <div align="center">  
   <p align="center">

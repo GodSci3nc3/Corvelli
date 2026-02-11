@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getAvailableTemplates, applyTemplate } from './templates.js';
 
 dotenv.config();
 
@@ -29,6 +30,13 @@ class ChatSession {
     this.deviceOS = null;
     this.deviceModel = null;
     
+    // Device identification
+    this.deviceHostname = null;
+    this.deviceId = null;
+    
+    // Activity tracking
+    this.lastActivity = Date.now();
+    
     // Conversational history
     this.conversationHistory = [];
     this.systemPrompt = null;
@@ -37,6 +45,10 @@ class ChatSession {
   resetConversation() {
     this.conversationHistory = [];
     this.systemPrompt = null;
+  }
+  
+  updateActivity() {
+    this.lastActivity = Date.now();
   }
 }
 
@@ -47,6 +59,62 @@ function getOrCreateSession(sessionId = 'default') {
     sessions.set(sessionId, new ChatSession(sessionId));
   }
   return sessions.get(sessionId);
+}
+
+// ============================================================================
+// DEVICE ID & HOSTNAME DETECTION
+// ============================================================================
+
+function generateDeviceId(connectionType, host, username) {
+  // Format: ssh-192.168.1.1-admin or serial-COM3-cisco
+  return `${connectionType}-${host}-${username}`;
+}
+
+async function detectHostname(session) {
+  try {
+    if (!session.connected) {
+      return null;
+    }
+    
+    const response = await fetch(`${PYTHON_SERVER}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: session.connectionId,
+        command: 'show running-config | include hostname'
+      })
+    });
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    const output = data.output || '';
+    
+    // Parse hostname from output
+    // Cisco: "hostname SW-CORE-01"
+    // Juniper: "set system host-name ROUTER-01"
+    
+    if (output.includes('hostname ')) {
+      const match = output.match(/hostname\s+(\S+)/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    if (output.includes('host-name ')) {
+      const match = output.match(/host-name\s+(\S+)/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[detectHostname] Error:', error.message);
+    return null;
+  }
 }
 
 // Command logging
@@ -122,7 +190,7 @@ function extractCommands(rawOutput) {
 // OpenRouter configuration
 const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || 'dummy-key',
   defaultHeaders: {
     "HTTP-Referer": "http://localhost:3000",
     "X-Title": "AIConsole"
@@ -652,6 +720,7 @@ app.post('/comando', async (req, res) => {
   
   try {
     const session = getOrCreateSession(sessionId);
+    session.updateActivity();
     
     const aiResponse = await chatWithSession(session, prompt);
     const generatedCommands = extractCommands(aiResponse);
@@ -697,6 +766,7 @@ app.post('/comando', async (req, res) => {
     console.error('[/comando] Error:', error);
     
     const session = getOrCreateSession(sessionId);
+    session.updateActivity();
     const fallbackCommands = await callOpenRouterModel(prompt, session.lastPrompt);
     
     res.json({ 
@@ -1198,21 +1268,24 @@ function logCommand(session, prompt, commands, executed, output = null) {
 
 app.post('/connect', async (req, res) => {
   const { session_id, connection_type, host, port, username, password } = req.body;
-  const sessionId = session_id || 'default';
   
-  console.log('[/connect] Type:', connection_type, 'Session:', sessionId);
+  // Generate device ID from connection parameters
+  const deviceId = session_id || generateDeviceId(connection_type, host, username);
+  
+  console.log('[/connect] Type:', connection_type, 'Device ID:', deviceId);
   
   try {
-    const session = getOrCreateSession(sessionId);
+    const session = getOrCreateSession(deviceId);
     
     session.connectionType = connection_type;
     session.credentials = { host, port, username, password };
+    session.deviceId = deviceId;
     
     const response = await fetch('http://127.0.0.1:5000/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        connection_id: sessionId,
+        connection_id: deviceId,
         connection_type: connection_type.toLowerCase(),
         host: host,
         port: port || 22,
@@ -1225,17 +1298,24 @@ app.post('/connect', async (req, res) => {
     
     if (result.success) {
       session.connected = true;
+      session.updateActivity();
       
       console.log('[/connect] Detecting vendor...');
-      const vendorInfo = await detectVendor(sessionId);
+      const vendorInfo = await detectVendor(deviceId);
       session.vendor = vendorInfo.vendor;
       session.deviceOS = vendorInfo.os;
       
-      console.log('[/connect] Connected! Vendor:', session.vendor, session.deviceOS);
+      console.log('[/connect] Detecting hostname...');
+      const hostname = await detectHostname(session);
+      session.deviceHostname = hostname || host;
+      
+      console.log('[/connect] Connected! Device:', session.deviceHostname, 'Vendor:', session.vendor, session.deviceOS);
       
       res.json({
         success: true,
         message: 'Connected successfully',
+        device_id: deviceId,
+        device_hostname: session.deviceHostname,
         vendor: session.vendor,
         device_os: session.deviceOS
       });
@@ -1292,6 +1372,7 @@ app.post('/reset-chat', async (req, res) => {
   const session = sessions.get(sessionId);
   if (session) {
     session.resetConversation();
+    session.updateActivity();
     res.json({
       success: true,
       message: 'Conversation reset'
@@ -1312,18 +1393,59 @@ app.get('/session-info', async (req, res) => {
     res.json({
       success: true,
       session: {
+        device_id: session.deviceId,
+        device_hostname: session.deviceHostname,
         connected: session.connected,
         connection_type: session.connectionType,
         vendor: session.vendor,
         device_os: session.deviceOS,
         last_prompt: session.lastPrompt,
-        message_count: session.conversationHistory.length
+        message_count: session.conversationHistory.length,
+        last_activity: session.lastActivity
       }
     });
   } else {
     res.json({
       success: false,
       error: 'Session not found'
+    });
+  }
+});
+
+app.get('/devices', async (req, res) => {
+  try {
+    const devices = [];
+    
+    for (const [sessionId, session] of sessions.entries()) {
+      devices.push({
+        device_id: session.deviceId || sessionId,
+        device_hostname: session.deviceHostname || 'Unknown',
+        connected: session.connected,
+        connection_type: session.connectionType,
+        vendor: session.vendor,
+        device_os: session.deviceOS,
+        message_count: session.conversationHistory.length,
+        last_activity: session.lastActivity,
+        credentials: {
+          host: session.credentials.host,
+          username: session.credentials.username
+        }
+      });
+    }
+    
+    // Sort by last activity (most recent first)
+    devices.sort((a, b) => b.last_activity - a.last_activity);
+    
+    res.json({
+      success: true,
+      count: devices.length,
+      devices: devices
+    });
+  } catch (error) {
+    console.error('[/devices] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -1403,6 +1525,66 @@ app.delete('/command-history', async (req, res) => {
   } catch (error) {
     console.error('[/clear-history] Error:', error);
     res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// CONFIG TEMPLATES
+// ============================================================================
+
+app.get('/templates', (req, res) => {
+  try {
+    const sessionId = req.query.session_id || 'default';
+    const session = getOrCreateSession(sessionId);
+    
+    // Use session's detected vendor, default to cisco
+    const vendor = session.vendor || req.query.vendor || 'cisco';
+    
+    const available = getAvailableTemplates(vendor);
+    
+    res.json({
+      success: true,
+      vendor: vendor,
+      templates: available
+    });
+  } catch (error) {
+    console.error('[/templates] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/apply-template', (req, res) => {
+  try {
+    const { template_id, params, session_id } = req.body;
+    
+    if (!template_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'template_id is required'
+      });
+    }
+    
+    const session = getOrCreateSession(session_id || 'default');
+    const vendor = session.vendor || 'cisco';
+    
+    const result = applyTemplate(template_id, vendor, params || {});
+    
+    res.json({
+      success: true,
+      template_id: template_id,
+      vendor: vendor,
+      prompt: result.prompt,
+      commands: result.commands
+    });
+  } catch (error) {
+    console.error('[/apply-template] Error:', error);
+    res.status(400).json({
       success: false,
       error: error.message
     });

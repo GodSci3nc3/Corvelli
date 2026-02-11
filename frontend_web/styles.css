@@ -290,6 +290,49 @@ body {
     gap: 8px;
 }
 
+.templates-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(0, 255, 0, 0.1);
+    margin-bottom: 8px;
+}
+
+.templates-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.templates-header p {
+    margin: 0;
+    font-size: 11px;
+    color: var(--accent);
+    opacity: 0.6;
+}
+
+.template-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 12px;
+    color: var(--primary);
+    opacity: 0.8;
+}
+
+.template-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.device-item:hover .template-icon {
+    opacity: 1;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+}
+
 .device-list-empty-icon {
     font-size: 48px;
 }

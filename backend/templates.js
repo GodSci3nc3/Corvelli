@@ -7,7 +7,7 @@ export const templates = {
   basic_vlan: {
     name: "VLAN Básica",
     description: "Crear VLAN con nombre",
-    icon: "🌐",
+    icon: "network",
     vendors: ["cisco", "juniper", "arista", "hp"],
     params: [
       { name: "vlan_id", type: "number", label: "VLAN ID", required: true },
@@ -33,7 +33,7 @@ export const templates = {
   trunk_port: {
     name: "Puerto Trunk",
     description: "Configurar trunk entre switches",
-    icon: "🔗",
+    icon: "link",
     vendors: ["cisco", "juniper", "arista", "hp"],
     params: [
       { name: "interface", type: "string", label: "Interfaz", required: true },
@@ -62,7 +62,7 @@ export const templates = {
   access_port: {
     name: "Puerto de Acceso",
     description: "Conectar PC o servidor a VLAN",
-    icon: "🔌",
+    icon: "port",
     vendors: ["cisco", "juniper", "arista", "hp"],
     params: [
       { name: "interface", type: "string", label: "Interfaz", required: true },
@@ -95,7 +95,7 @@ export const templates = {
   port_security: {
     name: "Port Security",
     description: "Seguridad básica en puerto",
-    icon: "🔒",
+    icon: "lock",
     vendors: ["cisco", "hp"],
     params: [
       { name: "interface", type: "string", label: "Interfaz", required: true },
@@ -121,7 +121,7 @@ export const templates = {
   default_gateway: {
     name: "Default Gateway / SVI",
     description: "IP en VLAN para routing",
-    icon: "🌉",
+    icon: "gateway",
     vendors: ["cisco", "juniper", "arista"],
     params: [
       { name: "vlan_id", type: "number", label: "VLAN ID", required: true },
@@ -149,7 +149,7 @@ export const templates = {
   ospf_single_area: {
     name: "OSPF Single Area",
     description: "OSPF básico en área 0",
-    icon: "📡",
+    icon: "broadcast",
     vendors: ["cisco", "juniper"],
     params: [
       { name: "process_id", type: "number", label: "Process ID", required: false, default: 1 },

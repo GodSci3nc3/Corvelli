@@ -1,5 +1,4 @@
-
-# C O R V E L L I - AI NETWORK ASSISTANT
+# CORVELLI - AI NETWORK ASSISTANT
 
 <div align="center">  
   <p align="center">
@@ -111,17 +110,17 @@
 
 <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff;">
 
-### What AIConsole Can Do (MVP Status)
+### What Corvelli Can Do (Alpha Status)
 - **Natural Language Input**: Accept commands like "show active interfaces" or "configure IP on FastEthernet0/1"
 - **Command Generation**: Translate to precise Cisco IOS syntax: `show ip interface brief`, `interface fa0/1`
 - **Multi-scenario Support**: Handle various networking tasks including configuration, monitoring, and troubleshooting
 - **Real-time Processing**: Instant response with AI-powered command translation
 - **Educational Value**: Learn proper Cisco command syntax through natural language interaction
-
-### What's Coming Next
 - **SSH Command Execution**: Direct execution of generated commands on real network devices
 - **Multi-vendor Support**: Expand beyond Cisco to include MikroTik, Juniper, and other network vendors
 - **Command History**: Track and save previously generated commands
+
+### What's Coming Next
 - **Learning Mode**: Detailed explanations of generated commands for educational purposes
 
 </div>

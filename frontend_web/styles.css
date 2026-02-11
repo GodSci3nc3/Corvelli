@@ -187,6 +187,10 @@ body {
     font-family: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace;
 }
 
+.terminal-output.hidden {
+    display: none;
+}
+
 .terminal-output::-webkit-scrollbar {
     width: 8px;
 }
@@ -202,6 +206,100 @@ body {
 
 .terminal-output::-webkit-scrollbar-thumb:hover {
     background: var(--accent);
+}
+
+/* Device List */
+.device-list {
+    flex: 1;
+    overflow-y: auto;
+    background-color: var(--terminal-bg);
+}
+
+.device-list.hidden {
+    display: none;
+}
+
+.device-item {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.device-item:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.device-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.device-item-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.device-item-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--error);
+}
+
+.device-item-status.connected {
+    background-color: var(--success);
+}
+
+.device-item-vendor {
+    font-size: 11px;
+    color: var(--accent);
+    opacity: 0.8;
+}
+
+.device-item-info {
+    font-size: 11px;
+    color: var(--accent);
+    opacity: 0.6;
+}
+
+.device-item-last {
+    font-size: 11px;
+    color: var(--accent);
+    opacity: 0.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--accent);
+    opacity: 0.5;
+    gap: 8px;
+}
+
+.device-list-empty-icon {
+    font-size: 48px;
+}
+
+.device-list-empty-text {
+    font-size: 14px;
+}
+
+.device-list-empty-hint {
+    font-size: 11px;
 }
 
 /* Terminal text styles */

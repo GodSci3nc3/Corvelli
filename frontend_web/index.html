@@ -50,9 +50,16 @@
         <div class="terminal-container">
             <div class="terminal-header">
                 <span>Terminal</span>
-                <button id="clear-btn" class="btn-icon" title="Clear terminal">✕</button>
+                <button id="clear-btn" class="btn-icon" title="Close device">✕</button>
             </div>
-            <div id="terminal" class="terminal-output"></div>
+            
+            <!-- Device List (shown by default) -->
+            <div id="device-list" class="device-list">
+                <!-- Devices will be loaded here -->
+            </div>
+            
+            <!-- Terminal Output (shown when device is opened) -->
+            <div id="terminal" class="terminal-output hidden"></div>
         </div>
 
         <!-- Input Area -->

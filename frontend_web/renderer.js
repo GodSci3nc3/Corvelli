@@ -4,6 +4,7 @@ const BACKEND_URL = 'http://localhost:3000';
 // State
 let connected = false;
 let currentHostname = '';
+let currentDeviceId = null;
 let aiEnabled = false;
 let commandCount = 0;
 
@@ -14,6 +15,7 @@ const connectionType = document.getElementById('connection-type');
 const connectBtn = document.getElementById('connect-btn');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
+const deviceList = document.getElementById('device-list');
 const terminal = document.getElementById('terminal');
 const commandInput = document.getElementById('command-input');
 const sendBtn = document.getElementById('send-btn');
@@ -30,10 +32,11 @@ commandInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendCommand();
 });
 aiToggle.addEventListener('click', toggleAI);
-clearBtn.addEventListener('click', clearTerminal);
+clearBtn.addEventListener('click', closeCurrentDevice);
 
 // Initialize
 updatePrompt();
+loadDeviceList();
 
 // Functions
 function updatePrompt() {
@@ -332,4 +335,112 @@ function showSSHDialog() {
         
         hostInput.focus();
     });
+}
+
+// ============================================================
+// DEVICE LIST MANAGEMENT
+// ============================================================
+
+async function loadDeviceList() {
+    try {
+        const response = await fetch(`${BACKEND_URL}/devices`);
+        const data = await response.json();
+        
+        if (data.success && data.devices) {
+            renderDeviceList(data.devices);
+        } else {
+            renderEmptyDeviceList();
+        }
+    } catch (error) {
+        console.error('Error loading devices:', error);
+        renderEmptyDeviceList();
+    }
+}
+
+function renderDeviceList(devices) {
+    deviceList.innerHTML = '';
+    
+    if (devices.length === 0) {
+        renderEmptyDeviceList();
+        return;
+    }
+    
+    devices.forEach(device => {
+        const item = createDeviceItem(device);
+        deviceList.appendChild(item);
+    });
+}
+
+function renderEmptyDeviceList() {
+    deviceList.innerHTML = `
+        <div class="device-list-empty">
+            <div class="device-list-empty-icon">+</div>
+            <div class="device-list-empty-text">No devices connected</div>
+            <div class="device-list-empty-hint">Click "Connect" to add a device</div>
+        </div>
+    `;
+}
+
+function createDeviceItem(device) {
+    const item = document.createElement('div');
+    item.className = 'device-item';
+    
+    const hostname = device.device_hostname || 'Unknown';
+    const vendor = device.vendor || 'Unknown';
+    const deviceOS = device.device_os || '';
+    const connected = device.connected;
+    const address = device.credentials?.host || 'N/A';
+    const username = device.credentials?.username || '';
+    const messageCount = device.message_count || 0;
+    
+    item.innerHTML = `
+        <div class="device-item-header">
+            <div class="device-item-name">
+                <div class="device-item-status ${connected ? 'connected' : ''}"></div>
+                <span>${hostname}</span>
+            </div>
+            <div class="device-item-vendor">${vendor.toUpperCase()}${deviceOS ? ' ' + deviceOS : ''}</div>
+        </div>
+        <div class="device-item-info">${address}${username ? ' • ' + username : ''}</div>
+        <div class="device-item-last">${connected ? messageCount + ' commands' : 'Disconnected'}</div>
+    `;
+    
+    item.onclick = () => openDevice(device);
+    
+    return item;
+}
+
+function openDevice(device) {
+    currentDeviceId = device.device_id;
+    currentHostname = device.device_hostname || device.credentials?.host || 'Device';
+    connected = device.connected;
+    
+    // Update UI
+    deviceName.value = currentHostname;
+    updatePrompt();
+    updateStatus(connected, connected ? 'Connected' : 'Disconnected');
+    
+    // Switch views
+    deviceList.classList.add('hidden');
+    terminal.classList.remove('hidden');
+    
+    // Clear terminal for this device
+    terminal.innerHTML = '';
+    addToTerminal(`Connected to ${currentHostname}`, 'success');
+}
+
+function closeCurrentDevice() {
+    // Switch back to device list
+    terminal.classList.add('hidden');
+    deviceList.classList.remove('hidden');
+    
+    currentDeviceId = null;
+    currentHostname = '';
+    connected = false;
+    
+    updatePrompt();
+    updateStatus(false, 'Disconnected');
+    
+    // Reload device list
+    loadDeviceList();
 }

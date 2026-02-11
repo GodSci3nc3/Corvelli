@@ -1,225 +1,197 @@
+"""
+Corvelli Connection Server
+Manages persistent SSH and Serial connections
+"""
+
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict
+import paramiko
+import serial
+import time
 import uvicorn
-import threading
-from ssh_executor import SSHExecutor
-from serial_executor import SerialExecutor
 
-app = FastAPI(title="Corvelli Connection Server")
+app = FastAPI()
 
-# CORS for Node.js backend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Store active connections
+connections: Dict[str, any] = {}
 
-# Connection storage (thread-safe)
-connections: Dict[str, object] = {}
-connection_lock = threading.Lock()
 
-# Request models
-class ConnectRequest(BaseModel):
+class ConnectionRequest(BaseModel):
     connection_id: str
-    connection_type: str  # "ssh" or "serial"
+    connection_type: str  # 'ssh' or 'serial'
     host: Optional[str] = None
     port: Optional[int] = 22
     username: Optional[str] = None
     password: Optional[str] = None
-    serial_port: Optional[str] = "/dev/ttyUSB0"
+    serial_port: Optional[str] = '/dev/ttyUSB0'
     baudrate: Optional[int] = 9600
+
 
 class ExecuteRequest(BaseModel):
     connection_id: str
     command: str
 
+
 class DisconnectRequest(BaseModel):
     connection_id: str
 
-# Endpoints
+
+def clean_output(output: str) -> str:
+    """Remove terminal control characters"""
+    import re
+    # Remove ANSI escape codes
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    cleaned = ansi_escape.sub('', output)
+    return cleaned.strip()
+
+
 @app.post("/connect")
-async def connect(req: ConnectRequest):
-    """Establish persistent connection"""
-    with connection_lock:
-        # Close existing connection if any
-        if req.connection_id in connections:
-            try:
-                old_conn = connections[req.connection_id]
-                if hasattr(old_conn, 'close'):
-                    old_conn.close()
-            except:
-                pass
-        
-        try:
-            if req.connection_type.lower() == "ssh":
-                executor = SSHExecutor(
-                    host=req.host,
-                    port=req.port,
-                    username=req.username,
-                    password=req.password,
-                    timeout=30
-                )
-                
-                if not executor.connect():
-                    return {
-                        "success": False,
-                        "error": executor.last_error or "Connection failed"
-                    }
-                
-                connections[req.connection_id] = executor
-                
-                return {
-                    "success": True,
-                    "message": f"Connected to {req.host} via SSH",
-                    "connection_type": "ssh",
-                    "mode": executor.current_mode
-                }
+async def connect(req: ConnectionRequest):
+    """Establish SSH or Serial connection"""
+    try:
+        if req.connection_type == 'ssh':
+            # SSH Connection
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            elif req.connection_type.lower() == "serial":
-                executor = SerialExecutor(
-                    port=req.serial_port,
-                    baudrate=req.baudrate,
-                    password=req.password or ""
-                )
-                
-                if not executor.connect():
-                    return {
-                        "success": False,
-                        "error": "Serial connection failed"
-                    }
-                
-                connections[req.connection_id] = executor
-                
-                return {
-                    "success": True,
-                    "message": f"Connected to {req.serial_port}",
-                    "connection_type": "serial"
-                }
+            client.connect(
+                hostname=req.host,
+                port=req.port,
+                username=req.username,
+                password=req.password,
+                timeout=10,
+                look_for_keys=False,
+                allow_agent=False
+            )
             
-            else:
-                raise HTTPException(status_code=400, detail="Invalid connection type")
-        
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
+            # Create interactive shell
+            shell = client.invoke_shell()
+            time.sleep(1)
+            
+            # Read initial output
+            shell.recv(4096).decode('utf-8', errors='ignore')
+            
+            connections[req.connection_id] = {
+                'type': 'ssh',
+                'client': client,
+                'shell': shell
             }
+            
+            return {
+                "success": True,
+                "message": f"Connected to {req.host} via SSH"
+            }
+            
+        elif req.connection_type == 'serial':
+            # Serial Connection
+            ser = serial.Serial(
+                port=req.serial_port,
+                baudrate=req.baudrate,
+                timeout=2
+            )
+            
+            # Wait for connection
+            time.sleep(1)
+            ser.read_all()  # Clear buffer
+            
+            connections[req.connection_id] = {
+                'type': 'serial',
+                'serial': ser
+            }
+            
+            return {
+                "success": True,
+                "message": f"Connected to {req.serial_port}"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Invalid connection type")
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 
 @app.post("/execute")
-async def execute_command(req: ExecuteRequest):
-    """Execute command on persistent connection"""
-    with connection_lock:
+async def execute(req: ExecuteRequest):
+    """Execute command on connected device"""
+    try:
         if req.connection_id not in connections:
             return {
                 "success": False,
-                "error": "Not connected. Please connect first."
+                "error": "Connection not found. Please connect first."
             }
         
-        executor = connections[req.connection_id]
+        conn = connections[req.connection_id]
         
-        try:
-            if isinstance(executor, SSHExecutor):
-                output = executor.execute_commands(req.command)
-                
-                # Extract text from response
-                if isinstance(output, dict) and "results" in output:
-                    text_output = "\n".join([r.get("response", "") for r in output["results"]])
-                else:
-                    text_output = str(output)
-                
-                return {
-                    "success": True,
-                    "output": text_output,
-                    "mode": executor.current_mode
-                }
+        if conn['type'] == 'ssh':
+            shell = conn['shell']
             
-            elif isinstance(executor, SerialExecutor):
-                output = executor.execute_commands(req.command)
-                
-                # Extract text from response
-                if isinstance(output, dict) and output.get("success") and "results" in output:
-                    text_output = "\n".join([r.get("response", "") for r in output["results"]])
-                elif isinstance(output, dict) and "error" in output:
-                    return {
-                        "success": False,
-                        "error": output["error"]
-                    }
-                else:
-                    text_output = str(output)
-                
-                return {
-                    "success": True,
-                    "output": text_output
-                }
+            # Send command
+            shell.send(req.command + '\n')
+            time.sleep(2)
             
-            else:
-                return {
-                    "success": False,
-                    "error": "Invalid executor type"
-                }
-        
-        except Exception as e:
+            # Read output
+            output = ""
+            while shell.recv_ready():
+                chunk = shell.recv(4096).decode('utf-8', errors='ignore')
+                output += chunk
+                time.sleep(0.1)
+            
             return {
-                "success": False,
-                "error": str(e)
+                "success": True,
+                "output": clean_output(output)
             }
+            
+        elif conn['type'] == 'serial':
+            ser = conn['serial']
+            
+            # Send command
+            ser.write((req.command + '\r\n').encode())
+            time.sleep(2)
+            
+            # Read output
+            output = ser.read_all().decode('utf-8', errors='ignore')
+            
+            return {
+                "success": True,
+                "output": clean_output(output)
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 
 @app.post("/disconnect")
 async def disconnect(req: DisconnectRequest):
-    """Close persistent connection"""
-    with connection_lock:
+    """Close connection"""
+    try:
         if req.connection_id in connections:
-            try:
-                executor = connections[req.connection_id]
-                
-                if isinstance(executor, SSHExecutor):
-                    executor.close()
-                elif isinstance(executor, SerialExecutor):
-                    executor.close_connection()
-                
-                del connections[req.connection_id]
-                
-                return {
-                    "success": True,
-                    "message": "Connection closed"
-                }
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error": str(e)
-                }
+            conn = connections[req.connection_id]
+            
+            if conn['type'] == 'ssh':
+                conn['shell'].close()
+                conn['client'].close()
+            elif conn['type'] == 'serial':
+                conn['serial'].close()
+            
+            del connections[req.connection_id]
         
         return {
             "success": True,
-            "message": "No active connection"
+            "message": "Disconnected"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
         }
 
-@app.get("/status/{connection_id}")
-async def get_status(connection_id: str):
-    """Check connection status"""
-    with connection_lock:
-        if connection_id in connections:
-            executor = connections[connection_id]
-            
-            if isinstance(executor, SSHExecutor):
-                return {
-                    "connected": executor.authenticated,
-                    "type": "ssh",
-                    "mode": executor.current_mode
-                }
-            elif isinstance(executor, SerialExecutor):
-                return {
-                    "connected": executor.authenticated,
-                    "type": "serial"
-                }
-        
-        return {
-            "connected": False
-        }
 
 @app.get("/health")
 async def health():
@@ -228,6 +200,7 @@ async def health():
         "status": "ok",
         "active_connections": len(connections)
     }
+
 
 if __name__ == "__main__":
     print("Corvelli Connection Server starting on port 5000...")

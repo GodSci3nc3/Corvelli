@@ -4,10 +4,58 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 dotenv.config();
 
 const execAsync = promisify(exec);
+
+// ============================================================================
+// SESSION MANAGER
+// ============================================================================
+
+class ChatSession {
+  constructor(connectionId) {
+    this.connectionId = connectionId;
+    this.connectionType = null;
+    this.connected = false;
+    this.credentials = {};
+    this.lastPrompt = 'Switch>';
+    
+    // Vendor detection
+    this.vendor = null;
+    this.deviceOS = null;
+    this.deviceModel = null;
+    
+    // Conversational history
+    this.conversationHistory = [];
+    this.systemPrompt = null;
+  }
+  
+  resetConversation() {
+    this.conversationHistory = [];
+    this.systemPrompt = null;
+  }
+}
+
+const sessions = new Map();
+
+function getOrCreateSession(sessionId = 'default') {
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, new ChatSession(sessionId));
+  }
+  return sessions.get(sessionId);
+}
+
+// Command logging
+const logDir = path.join(os.homedir(), '.corvelli');
+const logFile = path.join(logDir, 'command_history.jsonl');
+
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
 
 // Python Connection Server URL
 const PYTHON_SERVER = 'http://127.0.0.1:5000';
@@ -597,63 +645,64 @@ async function testSSHConnection(host, username, password) {
 
 app.post('/comando', async (req, res) => {
   const prompt = req.body.mensaje;
-  const executeSerial = req.body.execute || false;
-  const connectionType = req.body.connection_type || 'Console';
-  const sshHost = req.body.ssh_host;
-  const sshUsername = req.body.ssh_username;
-  const sshPassword = req.body.ssh_password;
+  const sessionId = req.body.session_id || 'default';
+  const executeCommand = req.body.execute || false;
   
-  console.log('Receiving request:', req.body.mensaje);
-  console.log('Execute:', executeSerial, 'Connection type:', connectionType);
+  console.log('[/comando] Request:', prompt, 'Session:', sessionId);
   
   try {
-    console.log('Sending to OpenRouter API...');
+    const session = getOrCreateSession(sessionId);
     
-    const switchPrompt = connectionState.lastPrompt || 'Switch>';
+    const aiResponse = await chatWithSession(session, prompt);
+    const generatedCommands = extractCommands(aiResponse);
     
-    const generatedCommands = await callOpenRouterModel(prompt, switchPrompt);
-    
-    console.log('Generated commands:', generatedCommands);
+    console.log('[/comando] Generated commands:', generatedCommands);
     
     let response = {
       respuesta: generatedCommands,
-      generated: true
+      generated: true,
+      vendor: session.vendor,
+      device_os: session.deviceOS
     };
     
-    if (executeSerial) {
-      console.log('Attempting execution via', connectionType);
-      let executionResult;
+    if (executeCommand && session.connected) {
+      console.log('[/comando] Executing commands...');
       
-      if (connectionType === 'SSH') {
-        executionResult = await executeOnSSH(generatedCommands, sshHost, sshUsername, sshPassword);
-      } else {
-        executionResult = await executeOnSerial(generatedCommands);
+      const execResponse = await fetch('http://127.0.0.1:5000/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection_id: sessionId,
+          command: generatedCommands
+        })
+      });
+      
+      const execResult = await execResponse.json();
+      
+      response.executed = execResult.success;
+      response.execution = execResult;
+      
+      if (execResult.success) {
+        response.device_output = execResult.output;
       }
       
-      response.execution = executionResult;
-      response.executed = executionResult.success;
-      
-      if (executionResult.success) {
-        response.device_responses = executionResult.results;
-      } else {
-        response.execution_error = executionResult.error;
-      }
+      logCommand(session, prompt, generatedCommands, execResult.success, execResult.output);
+    } else {
+      logCommand(session, prompt, generatedCommands, false);
     }
     
-    console.log('Sending to frontend:', response);
     res.json(response);
     
   } catch (error) {
-    console.error('ERROR:', error);
+    console.error('[/comando] Error:', error);
     
-    const fallbackResponse = `interface GigabitEthernet0/1
-ip address 192.168.1.1 255.255.255.0
-no shutdown`;
+    const session = getOrCreateSession(sessionId);
+    const fallbackCommands = await callOpenRouterModel(prompt, session.lastPrompt);
     
-    console.log('Using fallback response for demo');
     res.json({ 
-      respuesta: fallbackResponse,
-      generated: false,
+      respuesta: fallbackCommands,
+      generated: true,
+      fallback: true,
       error: error.message 
     });
   }
@@ -932,6 +981,430 @@ app.get('/connection-status', async (req, res) => {
       connected: false, 
       message: 'Error verificando puerto serial',
       error: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// VENDOR DETECTION
+// ============================================================================
+async function detectVendor(sessionId) {
+  console.log('[Vendor Detection] Starting for session:', sessionId);
+  
+  try {
+    const session = sessions.get(sessionId);
+    if (!session || !session.connected) {
+      console.log('[Vendor Detection] Session not connected');
+      return { vendor: 'unknown', os: 'unknown' };
+    }
+    
+    const response = await fetch('http://127.0.0.1:5000/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: sessionId,
+        command: 'show version'
+      })
+    });
+    
+    const result = await response.json();
+    if (!result.success) {
+      console.log('[Vendor Detection] Failed to execute show version');
+      return { vendor: 'unknown', os: 'unknown' };
+    }
+    
+    const output = result.output.toLowerCase();
+    console.log('[Vendor Detection] Analyzing output...');
+    
+    if (output.includes('cisco') || output.includes('ios')) {
+      let os = 'IOS';
+      if (output.includes('ios-xe')) os = 'IOS-XE';
+      else if (output.includes('nx-os')) os = 'NX-OS';
+      
+      console.log('[Vendor Detection] Detected: Cisco', os);
+      return { vendor: 'cisco', os: os };
+    }
+    
+    if (output.includes('juniper') || output.includes('junos')) {
+      console.log('[Vendor Detection] Detected: Juniper JunOS');
+      return { vendor: 'juniper', os: 'JunOS' };
+    }
+    
+    if (output.includes('arista')) {
+      console.log('[Vendor Detection] Detected: Arista EOS');
+      return { vendor: 'arista', os: 'EOS' };
+    }
+    
+    console.log('[Vendor Detection] Unknown vendor');
+    return { vendor: 'unknown', os: 'unknown' };
+    
+  } catch (error) {
+    console.error('[Vendor Detection] Error:', error);
+    return { vendor: 'unknown', os: 'unknown' };
+  }
+}
+
+// ============================================================================
+// DYNAMIC SYSTEM PROMPTS
+// ============================================================================
+function buildSystemPrompt(session) {
+  const basePrompt = `You are a network device command generator. Convert natural language requests into exact device commands.
+
+CRITICAL RULES:
+1. Output ONLY executable commands, no explanations
+2. Check current device state from prompt
+3. Use proper mode escalation
+4. Prefix all commands with "CMD: " for easy extraction
+
+Current device state: ${session.lastPrompt}`;
+
+  if (session.vendor === 'cisco') {
+    return basePrompt + `
+
+CISCO ${session.deviceOS || 'IOS'} SYNTAX:
+- Use "configure terminal" to enter config mode
+- VLAN creation: vlan X + name Y
+- Interface config: interface GigabitEthernet0/1
+- Save config: end + copy running-config startup-config
+- For switches: use "interface vlan X" for IPs
+- For routers: use physical interfaces for IPs
+
+MODE DETECTION:
+- If prompt ends with ">" → User mode (need "enable")
+- If prompt ends with "#" without "(config)" → Privileged mode
+- If prompt contains "(config)" → Already in config mode (DON'T add "configure terminal")
+
+SUBNET CALCULATION:
+- When user doesn't specify subnet mask, calculate optimal mask
+- For LANs: prefer /24 (254 hosts)
+- For point-to-point links: use /30 (2 hosts)
+- For server segments: use /27 (30 hosts) or /26 (62 hosts)
+- ALWAYS show subnet mask in dotted decimal (255.255.255.0)
+
+EXAMPLES:
+Request: "configure IP 192.168.1.1 on interface Gi0/1"
+Output:
+CMD: configure terminal
+CMD: interface GigabitEthernet0/1
+CMD: ip address 192.168.1.1 255.255.255.0
+CMD: no shutdown`;
+  }
+
+  if (session.vendor === 'juniper') {
+    return basePrompt + `
+
+JUNIPER JUNOS SYNTAX:
+- Use "configure" to enter config mode (NOT "configure terminal")
+- VLAN creation: set vlans vlan-name vlan-id X
+- Interface config: set interfaces ge-0/0/1
+- Save config: commit (NOT "copy run start")
+
+SUBNET CALCULATION:
+- Use CIDR notation: /24, /30, etc.
+- Optimal masks same as Cisco`;
+  }
+
+  return basePrompt;
+}
+
+// ============================================================================
+// CONVERSATIONAL CHAT
+// ============================================================================
+async function chatWithSession(session, userMessage) {
+  console.log('[Chat] User message:', userMessage);
+  
+  if (session.conversationHistory.length === 0) {
+    session.systemPrompt = buildSystemPrompt(session);
+    session.conversationHistory.push({
+      role: "system",
+      content: session.systemPrompt
+    });
+    console.log('[Chat] System prompt created for vendor:', session.vendor);
+  }
+  
+  session.conversationHistory.push({
+    role: "user",
+    content: userMessage
+  });
+  
+  const models = [
+    "google/gemini-2.0-flash-exp:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free"
+  ];
+  
+  let lastError = null;
+  
+  for (const model of models) {
+    try {
+      console.log(`[Chat] Trying model: ${model}`);
+      
+      const completion = await openai.chat.completions.create({
+        model: model,
+        messages: session.conversationHistory,
+        temperature: 0.1,
+        max_tokens: 300
+      });
+      
+      const aiResponse = completion.choices[0]?.message?.content || "No response";
+      
+      session.conversationHistory.push({
+        role: "assistant",
+        content: aiResponse
+      });
+      
+      console.log('[Chat] Success with model:', model);
+      return aiResponse;
+      
+    } catch (error) {
+      console.error(`[Chat] Model ${model} failed:`, error.message);
+      lastError = error;
+      if (error.status === 429) continue;
+      if (error.message?.includes('context_length')) continue;
+    }
+  }
+  
+  throw lastError || new Error('All models failed');
+}
+
+// ============================================================================
+// COMMAND LOGGING
+// ============================================================================
+function logCommand(session, prompt, commands, executed, output = null) {
+  try {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      user: os.userInfo().username,
+      session_id: session.connectionId,
+      device: session.credentials.host || 'serial',
+      vendor: session.vendor || 'unknown',
+      device_os: session.deviceOS || 'unknown',
+      prompt_input: prompt,
+      commands_generated: commands,
+      executed: executed,
+      output: output ? output.substring(0, 500) : null
+    };
+    
+    fs.appendFileSync(logFile, JSON.stringify(logEntry) + '\n');
+    console.log('[Logging] Command logged');
+  } catch (error) {
+    console.error('[Logging] Failed:', error);
+  }
+}
+
+// ============================================================================
+// NEW SESSION-BASED ENDPOINTS
+// ============================================================================
+
+app.post('/connect', async (req, res) => {
+  const { session_id, connection_type, host, port, username, password } = req.body;
+  const sessionId = session_id || 'default';
+  
+  console.log('[/connect] Type:', connection_type, 'Session:', sessionId);
+  
+  try {
+    const session = getOrCreateSession(sessionId);
+    
+    session.connectionType = connection_type;
+    session.credentials = { host, port, username, password };
+    
+    const response = await fetch('http://127.0.0.1:5000/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        connection_id: sessionId,
+        connection_type: connection_type.toLowerCase(),
+        host: host,
+        port: port || 22,
+        username: username,
+        password: password
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      session.connected = true;
+      
+      console.log('[/connect] Detecting vendor...');
+      const vendorInfo = await detectVendor(sessionId);
+      session.vendor = vendorInfo.vendor;
+      session.deviceOS = vendorInfo.os;
+      
+      console.log('[/connect] Connected! Vendor:', session.vendor, session.deviceOS);
+      
+      res.json({
+        success: true,
+        message: 'Connected successfully',
+        vendor: session.vendor,
+        device_os: session.deviceOS
+      });
+    } else {
+      res.json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('[/connect] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/disconnect', async (req, res) => {
+  const { session_id } = req.body;
+  const sessionId = session_id || 'default';
+  
+  console.log('[/disconnect] Session:', sessionId);
+  
+  try {
+    await fetch('http://127.0.0.1:5000/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connection_id: sessionId })
+    });
+    
+    sessions.delete(sessionId);
+    
+    res.json({
+      success: true,
+      message: 'Disconnected successfully'
+    });
+  } catch (error) {
+    console.error('[/disconnect] Error:', error);
+    sessions.delete(sessionId);
+    res.json({
+      success: true,
+      message: 'Session cleared'
+    });
+  }
+});
+
+app.post('/reset-chat', async (req, res) => {
+  const { session_id } = req.body;
+  const sessionId = session_id || 'default';
+  
+  console.log('[/reset-chat] Session:', sessionId);
+  
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.resetConversation();
+    res.json({
+      success: true,
+      message: 'Conversation reset'
+    });
+  } else {
+    res.json({
+      success: false,
+      error: 'Session not found'
+    });
+  }
+});
+
+app.get('/session-info', async (req, res) => {
+  const sessionId = req.query.session_id || 'default';
+  
+  const session = sessions.get(sessionId);
+  if (session) {
+    res.json({
+      success: true,
+      session: {
+        connected: session.connected,
+        connection_type: session.connectionType,
+        vendor: session.vendor,
+        device_os: session.deviceOS,
+        last_prompt: session.lastPrompt,
+        message_count: session.conversationHistory.length
+      }
+    });
+  } else {
+    res.json({
+      success: false,
+      error: 'Session not found'
+    });
+  }
+});
+
+app.get('/command-history', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const sessionId = req.query.session_id;
+    
+    if (!fs.existsSync(logFile)) {
+      return res.json({ logs: [] });
+    }
+    
+    const content = fs.readFileSync(logFile, 'utf-8');
+    let logs = content
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => JSON.parse(line))
+      .reverse();
+    
+    if (sessionId) {
+      logs = logs.filter(log => log.session_id === sessionId);
+    }
+    
+    res.json({
+      success: true,
+      logs: logs.slice(0, limit),
+      total: logs.length
+    });
+  } catch (error) {
+    console.error('[/command-history] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.get('/export-history', async (req, res) => {
+  try {
+    if (!fs.existsSync(logFile)) {
+      return res.status(404).send('No history found');
+    }
+    
+    const content = fs.readFileSync(logFile, 'utf-8');
+    const logs = content
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => JSON.parse(line));
+    
+    const csv = [
+      'Timestamp,User,Session,Device,Vendor,OS,Prompt,Commands,Executed',
+      ...logs.map(log => 
+        `"${log.timestamp}","${log.user}","${log.session_id}","${log.device}","${log.vendor}","${log.device_os}","${log.prompt_input.replace(/"/g, '""')}","${log.commands_generated.replace(/"/g, '""')}","${log.executed}"`
+      )
+    ].join('\n');
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=corvelli_history.csv');
+    res.send(csv);
+  } catch (error) {
+    console.error('[/export-history] Error:', error);
+    res.status(500).send('Error exporting history');
+  }
+});
+
+app.delete('/command-history', async (req, res) => {
+  try {
+    if (fs.existsSync(logFile)) {
+      fs.unlinkSync(logFile);
+    }
+    
+    res.json({
+      success: true,
+      message: 'History cleared'
+    });
+  } catch (error) {
+    console.error('[/clear-history] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

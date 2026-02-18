@@ -471,16 +471,17 @@ except:
   }
 }
 
-// Function to call OpenRouter API with fallback models
+// Helper function to wait
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Function to call OpenRouter API with retry strategy
 async function callOpenRouterModel(prompt, switchPrompt = 'Switch>') {
-  // List of models to try in order (cheap paid models - verified December 2025)
-  const models = [
-    "google/gemini-2.0-flash-lite-001",      // $0.000075/1K tokens - SUPER BARATO
-    "nvidia/llama-3.3-nemotron-super-49b-v1.5", // $0.0001/1K tokens - Muy bueno
-    "google/gemini-2.5-flash-lite",          // $0.0001/1K tokens
-    "google/gemini-2.0-flash-001",           // $0.0001/1K tokens - Backup
-    "google/gemini-2.5-flash"                // $0.0003/1K tokens - Mejor calidad
-  ];
+  // Single reliable model instead of multiple fallbacks
+  const model = "google/gemini-2.0-flash-lite-001"; // $0.000075/1K tokens - Barato y confiable
+  const maxRetries = 3;
+  const baseDelay = 2000; // 2 segundos base
 
   const systemPrompt = `You are a Cisco IOS command generator. Convert natural language requests into exact Cisco IOS commands.
 
@@ -571,11 +572,10 @@ Remember:
 
   let lastError = null;
 
-  // Try each model in sequence
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
+  // Retry strategy with exponential backoff
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`Attempting with model ${i + 1}/${models.length}: ${model}`);
+      console.log(`Attempting with ${model} (attempt ${attempt}/${maxRetries})`);
       
       const completion = await openai.chat.completions.create({
         model: model,
@@ -594,8 +594,6 @@ Remember:
       });
 
       const rawResponse = completion.choices[0]?.message?.content || "No response";
-      
-      // Extract commands from response
       const extractedCommands = extractCommands(rawResponse);
 
       console.log(`✓ Success with model: ${model}`);
@@ -605,23 +603,31 @@ Remember:
       return extractedCommands;
       
     } catch (error) {
-      console.error(`✗ Model ${model} failed:`, error.message);
+      console.error(`✗ Attempt ${attempt} failed:`, error.message);
       lastError = error;
       
-      // If it's a rate limit error (429), try next model immediately
-      if (error.status === 429) {
-        console.log(`Rate limited on ${model}, trying next model...`);
+      // If it's a rate limit error and we haven't exhausted retries, wait and retry
+      if (error.status === 429 && attempt < maxRetries) {
+        const waitTime = baseDelay * attempt; // Exponential backoff: 2s, 4s, 6s
+        console.log(`⏳ Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}...`);
+        await wait(waitTime);
         continue;
       }
       
-      // For other errors, also try next model
-      console.log(`Error with ${model}, trying next model...`);
-      continue;
+      // For non-429 errors or last attempt, break and go to fallback
+      if (attempt === maxRetries) {
+        console.error(`All ${maxRetries} attempts failed. Last error:`, error.message);
+        break;
+      }
+      
+      // For other errors, wait briefly and retry
+      console.log(`⏳ Error occurred. Waiting 1s before retry...`);
+      await wait(1000);
     }
   }
 
-  // All models failed, try rule-based fallback
-  console.error('All OpenRouter models failed. Last error:', lastError?.message);
+  // All retries failed, try rule-based fallback
+  console.error('OpenRouter failed after retries. Last error:', lastError?.message);
   console.log('Attempting rule-based generation...');
   
   const ruleBasedResult = generateRuleBased(prompt, switchPrompt);
@@ -720,6 +726,17 @@ app.post('/comando', async (req, res) => {
   
   try {
     const session = getOrCreateSession(sessionId);
+    
+    // Initialize AI-only chat sessions
+    if (sessionId.startsWith('ai-chat-') && !session.deviceId) {
+      session.deviceId = sessionId;
+      session.deviceHostname = `AI Assistant - ${new Date().toLocaleDateString()}`;
+      session.connected = false;
+      session.connectionType = 'AI';
+      session.vendor = 'cisco'; // Default for educational mode
+      console.log('[/comando] Created AI chat session:', sessionId);
+    }
+    
     session.updateActivity();
     
     const aiResponse = await chatWithSession(session, prompt);
@@ -728,7 +745,9 @@ app.post('/comando', async (req, res) => {
     console.log('[/comando] Generated commands:', generatedCommands);
     
     let response = {
+      success: true,
       respuesta: generatedCommands,
+      output: generatedCommands,
       generated: true,
       vendor: session.vendor,
       device_os: session.deviceOS
@@ -1117,7 +1136,7 @@ async function detectVendor(sessionId) {
 // ============================================================================
 // DYNAMIC SYSTEM PROMPTS
 // ============================================================================
-function buildSystemPrompt(session) {
+function buildSystemPrompt(session, isConnected = true) {
   const basePrompt = `You are a network device command generator. Convert natural language requests into exact device commands.
 
 CRITICAL RULES:
@@ -1174,6 +1193,44 @@ SUBNET CALCULATION:
 - Optimal masks same as Cisco`;
   }
 
+  // Educational mode when not connected to a device
+  if (!isConnected) {
+    return basePrompt + `
+
+EDUCATIONAL MODE (No device connected):
+Since you're not connected to a real device, you can be more conversational and helpful:
+
+1. Still provide accurate, executable commands
+2. But you can also explain what they do and why
+3. Help with troubleshooting by suggesting diagnostic commands
+4. Answer networking questions and concepts
+5. Assist with certification prep (CCNA, CCNP, etc.)
+6. Explain best practices and common pitfalls
+
+FORMAT FOR EDUCATIONAL MODE:
+- Provide the commands they asked for
+- Add a brief explanation of what each command does
+- If relevant, suggest related commands or next steps
+- Be friendly and encouraging
+
+EXAMPLE:
+User: "show vlan brief"
+You: "Here's the command for Cisco IOS:
+
+show vlan brief
+
+This command displays a summary of all VLANs configured on the switch, including:
+- VLAN ID and name
+- Status (active/suspended/shutdown)
+- Ports assigned to each VLAN
+
+Related commands you might find useful:
+- show vlan id [number] - Details for a specific VLAN
+- show interfaces switchport - Shows switchport configuration per interface
+
+Would you like me to explain how to configure VLANs or interpret the output?"`;
+  }
+
   return basePrompt;
 }
 
@@ -1184,7 +1241,7 @@ async function chatWithSession(session, userMessage) {
   console.log('[Chat] User message:', userMessage);
   
   if (session.conversationHistory.length === 0) {
-    session.systemPrompt = buildSystemPrompt(session);
+    session.systemPrompt = buildSystemPrompt(session, session.connected);
     session.conversationHistory.push({
       role: "system",
       content: session.systemPrompt
@@ -1197,17 +1254,17 @@ async function chatWithSession(session, userMessage) {
     content: userMessage
   });
   
-  const models = [
-    "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
-    "nousresearch/hermes-3-llama-3.1-405b:free"
-  ];
+  // Single reliable model with retry strategy
+  const model = "google/gemini-2.0-flash-lite-001";
+  const maxRetries = 3;
+  const baseDelay = 2000; // 2 segundos base
   
   let lastError = null;
   
-  for (const model of models) {
+  // Retry strategy with exponential backoff
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[Chat] Trying model: ${model}`);
+      console.log(`[Chat] Attempting with ${model} (attempt ${attempt}/${maxRetries})`);
       
       const completion = await openai.chat.completions.create({
         model: model,
@@ -1223,18 +1280,45 @@ async function chatWithSession(session, userMessage) {
         content: aiResponse
       });
       
-      console.log('[Chat] Success with model:', model);
+      console.log('[Chat] ✓ Success with model:', model);
       return aiResponse;
       
     } catch (error) {
-      console.error(`[Chat] Model ${model} failed:`, error.message);
+      console.error(`[Chat] ✗ Attempt ${attempt} failed:`, error.message);
       lastError = error;
-      if (error.status === 429) continue;
-      if (error.message?.includes('context_length')) continue;
+      
+      // If it's a rate limit error and we haven't exhausted retries, wait and retry
+      if (error.status === 429 && attempt < maxRetries) {
+        const waitTime = baseDelay * attempt; // Exponential backoff: 2s, 4s, 6s
+        console.log(`[Chat] ⏳ Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}...`);
+        await wait(waitTime);
+        continue;
+      }
+      
+      // For context length errors, try with shorter history
+      if (error.message?.includes('context_length') && attempt < maxRetries) {
+        console.log(`[Chat] ⏳ Context too long. Trimming history and retrying...`);
+        // Keep system prompt + last 4 messages
+        const systemMsg = session.conversationHistory[0];
+        const recentMessages = session.conversationHistory.slice(-4);
+        session.conversationHistory = [systemMsg, ...recentMessages];
+        await wait(1000);
+        continue;
+      }
+      
+      // For final attempt or other errors, break
+      if (attempt === maxRetries) {
+        console.error(`[Chat] All ${maxRetries} attempts failed. Last error:`, error.message);
+        break;
+      }
+      
+      // For other errors, wait briefly and retry
+      console.log(`[Chat] ⏳ Error occurred. Waiting 1s before retry...`);
+      await wait(1000);
     }
   }
   
-  throw lastError || new Error('All models failed');
+  throw lastError || new Error('All chat attempts failed after retries');
 }
 
 // ============================================================================

@@ -9,6 +9,10 @@
 *.pub
 secrets/
 
+# Session Storage (contains user conversations and device info)
+backend/sessions/
+sessions/
+
 # Node Dependencies
 node_modules/
 npm-debug.log

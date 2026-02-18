@@ -7,36 +7,53 @@ let currentHostname = '';
 let currentDeviceId = null;
 let aiEnabled = false;
 let commandCount = 0;
+let aiChatSessionId = null; // For AI-only conversations
 
 // DOM Elements
-const deviceType = document.getElementById('device-type');
-const deviceName = document.getElementById('device-name');
-const connectionType = document.getElementById('connection-type');
-const connectBtn = document.getElementById('connect-btn');
-const statusDot = document.getElementById('status-dot');
-const statusText = document.getElementById('status-text');
-const deviceList = document.getElementById('device-list');
-const terminal = document.getElementById('terminal');
-const commandInput = document.getElementById('command-input');
-const sendBtn = document.getElementById('send-btn');
-const aiToggle = document.getElementById('ai-toggle');
-const clearBtn = document.getElementById('clear-btn');
-const prompt = document.getElementById('prompt');
-const connectionStatus = document.getElementById('connection-status');
-const commandCounter = document.getElementById('command-counter');
+let deviceType, deviceName, connectionType, connectBtn, statusDot, statusText;
+let deviceList, terminal, commandInput, sendBtn, aiToggle, clearBtn;
+let prompt, connectionStatus, commandCounter;
 
-// Event Listeners
-connectBtn.addEventListener('click', toggleConnection);
-sendBtn.addEventListener('click', sendCommand);
-commandInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendCommand();
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize DOM elements
+    deviceType = document.getElementById('device-type');
+    deviceName = document.getElementById('device-name');
+    connectionType = document.getElementById('connection-type');
+    connectBtn = document.getElementById('connect-btn');
+    statusDot = document.getElementById('status-dot');
+    statusText = document.getElementById('status-text');
+    deviceList = document.getElementById('device-list');
+    terminal = document.getElementById('terminal');
+    commandInput = document.getElementById('command-input');
+    sendBtn = document.getElementById('send-btn');
+    aiToggle = document.getElementById('ai-toggle');
+    clearBtn = document.getElementById('clear-btn');
+    prompt = document.getElementById('prompt');
+    connectionStatus = document.getElementById('connection-status');
+    commandCounter = document.getElementById('command-counter');
+    
+    // Verify all elements are found
+    if (!connectBtn || !deviceList || !terminal) {
+        console.error('Critical DOM elements not found!');
+        return;
+    }
+    
+    // Event Listeners
+    connectBtn.addEventListener('click', toggleConnection);
+    sendBtn.addEventListener('click', sendCommand);
+    commandInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendCommand();
+    });
+    aiToggle.addEventListener('click', toggleAI);
+    clearBtn.addEventListener('click', closeCurrentDevice);
+    
+    // Initialize
+    updatePrompt();
+    loadDeviceList();
+    
+    console.log('Corvelli initialized successfully');
 });
-aiToggle.addEventListener('click', toggleAI);
-clearBtn.addEventListener('click', closeCurrentDevice);
-
-// Initialize
-updatePrompt();
-loadDeviceList();
 
 // Functions
 function updatePrompt() {
@@ -103,14 +120,30 @@ async function connect() {
     } else if (connType === 'Console') {
         await connectSerial();
     } else {
+        // Switch to terminal view for error message
+        deviceList.classList.add('hidden');
+        terminal.classList.remove('hidden');
         addToTerminal(`Connection type ${connType} not implemented yet.`, 'error');
+        
+        // Go back after 2 seconds
+        setTimeout(() => {
+            terminal.classList.add('hidden');
+            deviceList.classList.remove('hidden');
+        }, 2000);
     }
 }
 
 async function connectSSH() {
     // Show credentials dialog
     const credentials = await showSSHDialog();
-    if (!credentials) return;
+    if (!credentials) {
+        // User cancelled - don't switch views
+        return;
+    }
+    
+    // Switch to terminal view only after credentials are confirmed
+    deviceList.classList.add('hidden');
+    terminal.classList.remove('hidden');
     
     try {
         addToTerminal('Connecting via SSH...', 'command');
@@ -137,9 +170,21 @@ async function connectSSH() {
             addToTerminal(data.output, 'result');
         } else {
             addToTerminal(`Connection failed: ${data.error}`, 'error');
+            // Connection failed - go back to device list after 2 seconds
+            setTimeout(() => {
+                terminal.classList.add('hidden');
+                deviceList.classList.remove('hidden');
+                loadDeviceList();
+            }, 2000);
         }
     } catch (error) {
         addToTerminal(`Error: ${error.message}`, 'error');
+        // Error - go back to device list after 2 seconds
+        setTimeout(() => {
+            terminal.classList.add('hidden');
+            deviceList.classList.remove('hidden');
+            loadDeviceList();
+        }, 2000);
     }
 }
 
@@ -213,8 +258,24 @@ async function sendCommand() {
     const command = commandInput.value.trim();
     if (!command) return;
     
+    // Switch to terminal view when sending command
+    deviceList.classList.add('hidden');
+    terminal.classList.remove('hidden');
+    
     commandInput.value = '';
     addToTerminal(`${currentHostname || ''}# ${command}`, 'command');
+    
+    // If not connected, require AI mode for commands
+    if (!connected && !aiEnabled) {
+        addToTerminal('Not connected to any device. Enable AI mode or connect first.', 'error');
+        return;
+    }
+    
+    // If using AI without connection, create/use AI chat session
+    if (!connected && aiEnabled) {
+        await sendAICommand(command);
+        return;
+    }
     
     try {
         const connType = connectionType.value;
@@ -225,7 +286,8 @@ async function sendCommand() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 command: command,
-                useAI: aiEnabled
+                useAI: aiEnabled,
+                session_id: currentDeviceId
             })
         });
         
@@ -360,10 +422,10 @@ async function loadDeviceList() {
 function renderDeviceList(devices) {
     deviceList.innerHTML = '';
     
-    // Filter only real connected devices (exclude default/mock sessions)
+    // Filter devices: exclude 'default', include real devices and AI chats
     const realDevices = devices.filter(d => 
         d.device_id !== 'default' && 
-        (d.connected || d.credentials?.host)
+        (d.connected || d.credentials?.host || d.device_id?.startsWith('ai-chat-'))
     );
     
     if (realDevices.length === 0) {
@@ -412,7 +474,6 @@ function renderConfigTemplates(templates) {
         const item = createTemplateItem(template.id, template);
         deviceList.appendChild(item);
     });
-}
 }
 
 function createTemplateItem(key, template) {
@@ -478,24 +539,28 @@ function createDeviceItem(device) {
     const item = document.createElement('div');
     item.className = 'device-item';
     
+    const isAIChat = device.device_id?.startsWith('ai-chat-');
     const hostname = device.device_hostname || 'Unknown';
     const vendor = device.vendor || 'Unknown';
     const deviceOS = device.device_os || '';
     const connected = device.connected;
-    const address = device.credentials?.host || 'N/A';
+    const address = device.credentials?.host || (isAIChat ? 'Educational Mode' : 'N/A');
     const username = device.credentials?.username || '';
     const messageCount = device.message_count || 0;
+    
+    // SVG icon for AI chats
+    const chatIcon = isAIChat ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; color: var(--primary);"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' : '';
     
     item.innerHTML = `
         <div class="device-item-header">
             <div class="device-item-name">
-                <div class="device-item-status ${connected ? 'connected' : ''}"></div>
+                ${isAIChat ? chatIcon : `<div class="device-item-status ${connected ? 'connected' : ''}"></div>`}
                 <span>${hostname}</span>
             </div>
-            <div class="device-item-vendor">${vendor.toUpperCase()}${deviceOS ? ' ' + deviceOS : ''}</div>
+            <div class="device-item-vendor">${isAIChat ? 'AI CHAT' : vendor.toUpperCase() + (deviceOS ? ' ' + deviceOS : '')}</div>
         </div>
         <div class="device-item-info">${address}${username ? ' • ' + username : ''}</div>
-        <div class="device-item-last">${connected ? messageCount + ' commands' : 'Disconnected'}</div>
+        <div class="device-item-last">${messageCount} messages</div>
     `;
     
     item.onclick = () => openDevice(device);
@@ -503,10 +568,20 @@ function createDeviceItem(device) {
     return item;
 }
 
-function openDevice(device) {
+async function openDevice(device) {
     currentDeviceId = device.device_id;
     currentHostname = device.device_hostname || device.credentials?.host || 'Device';
     connected = device.connected;
+    
+    // Restore AI chat session if opening an AI chat
+    if (currentDeviceId && currentDeviceId.startsWith('ai-chat-')) {
+        aiChatSessionId = currentDeviceId;
+        aiEnabled = true;
+        aiToggle.textContent = 'AI: ON';
+        aiToggle.dataset.enabled = true;
+        aiToggle.classList.remove('btn-secondary');
+        aiToggle.classList.add('btn-primary');
+    }
     
     // Update UI
     deviceName.value = currentHostname;
@@ -520,12 +595,86 @@ function openDevice(device) {
     // Clear terminal for this device
     terminal.innerHTML = '';
     addToTerminal(`Connected to ${currentHostname}`, 'success');
+    
+    // Load conversation history if it's an AI chat
+    if (currentDeviceId && currentDeviceId.startsWith('ai-chat-')) {
+        await loadChatHistory(currentDeviceId);
+    }
+}
+
+// Load chat history from backend
+async function loadChatHistory(sessionId) {
+    try {
+        const response = await fetch(`${BACKEND_URL}/session-info?session_id=${sessionId}&include_history=true`);
+        const data = await response.json();
+        
+        if (data.success && data.session.conversation_history) {
+            const history = data.session.conversation_history;
+            
+            // Skip system prompt (first message)
+            for (let i = 1; i < history.length; i++) {
+                const msg = history[i];
+                
+                if (msg.role === 'user') {
+                    // Show user message
+                    addToTerminal(`# ${msg.content}`, 'prompt');
+                } else if (msg.role === 'assistant') {
+                    // Show AI response
+                    addToTerminal(msg.content, 'output');
+                }
+            }
+            
+            addToTerminal('─────────────────────────────────────', 'info');
+        }
+    } catch (error) {
+        console.error('Error loading chat history:', error);
+    }
+}
+
+// AI Chat Functions
+async function sendAICommand(command) {
+    try {
+        // Create AI session ID if it doesn't exist
+        if (!aiChatSessionId) {
+            aiChatSessionId = `ai-chat-${Date.now()}`;
+            currentDeviceId = aiChatSessionId;
+            currentHostname = 'AI Assistant';
+            updatePrompt();
+        }
+        
+        const response = await fetch(`${BACKEND_URL}/comando`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mensaje: command,
+                session_id: aiChatSessionId,
+                execute: false
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await typewriterEffect(data.output || data.respuesta);
+            commandCount++;
+            commandCounter.textContent = `Commands: ${commandCount}`;
+        } else {
+            addToTerminal(`Error: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        addToTerminal(`Error: ${error.message}`, 'error');
+    }
 }
 
 function closeCurrentDevice() {
     // Switch back to device list
     terminal.classList.add('hidden');
     deviceList.classList.remove('hidden');
+    
+    // Clear AI chat session if closing an AI chat
+    if (currentDeviceId && currentDeviceId.startsWith('ai-chat-')) {
+        aiChatSessionId = null;
+    }
     
     currentDeviceId = null;
     currentHostname = '';

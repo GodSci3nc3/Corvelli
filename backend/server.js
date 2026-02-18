@@ -14,6 +14,109 @@ dotenv.config();
 const execAsync = promisify(exec);
 
 // ============================================================================
+// PERSISTENCE - Session Storage
+// ============================================================================
+
+const SESSIONS_DIR = path.join(process.cwd(), 'sessions');
+
+// Create sessions directory if it doesn't exist
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  console.log('[Persistence] Created sessions directory:', SESSIONS_DIR);
+}
+
+function getSessionFilePath(sessionId) {
+  // Sanitize sessionId for filename (remove special chars)
+  const sanitized = sessionId.replace(/[^a-zA-Z0-9-_.]/g, '_');
+  return path.join(SESSIONS_DIR, `${sanitized}.json`);
+}
+
+function saveSession(session) {
+  try {
+    const filePath = getSessionFilePath(session.connectionId);
+    const data = {
+      sessionId: session.connectionId,
+      deviceId: session.deviceId,
+      deviceHostname: session.deviceHostname,
+      connected: session.connected,
+      connectionType: session.connectionType,
+      vendor: session.vendor,
+      deviceOS: session.deviceOS,
+      lastPrompt: session.lastPrompt,
+      conversationHistory: session.conversationHistory,
+      credentials: {
+        host: session.credentials.host,
+        username: session.credentials.username,
+        port: session.credentials.port
+        // NOTE: Password is NOT saved for security
+      },
+      lastActivity: session.lastActivity,
+      createdAt: session.createdAt || new Date().toISOString()
+    };
+    
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    console.log('[Persistence] Saved session:', session.connectionId);
+  } catch (error) {
+    console.error('[Persistence] Error saving session:', error.message);
+  }
+}
+
+function loadSessions() {
+  try {
+    const files = fs.readdirSync(SESSIONS_DIR);
+    const loadedSessions = [];
+    
+    for (const file of files) {
+      if (!file.endsWith('.json')) continue;
+      
+      try {
+        const filePath = path.join(SESSIONS_DIR, file);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        
+        // Restore session
+        const session = new ChatSession(data.sessionId);
+        session.deviceId = data.deviceId;
+        session.deviceHostname = data.deviceHostname;
+        session.connected = false; // Never restore as connected (requires re-auth)
+        session.connectionType = data.connectionType;
+        session.vendor = data.vendor;
+        session.deviceOS = data.deviceOS;
+        session.lastPrompt = data.lastPrompt;
+        session.conversationHistory = data.conversationHistory || [];
+        session.credentials = data.credentials || {};
+        session.lastActivity = data.lastActivity;
+        session.createdAt = data.createdAt;
+        
+        sessions.set(data.sessionId, session);
+        loadedSessions.push(data.sessionId);
+      } catch (error) {
+        console.error(`[Persistence] Error loading ${file}:`, error.message);
+      }
+    }
+    
+    if (loadedSessions.length > 0) {
+      console.log(`[Persistence] Loaded ${loadedSessions.length} sessions from disk`);
+    } else {
+      console.log('[Persistence] No previous sessions found');
+    }
+  } catch (error) {
+    console.error('[Persistence] Error loading sessions:', error.message);
+  }
+}
+
+function deleteSession(sessionId) {
+  try {
+    const filePath = getSessionFilePath(sessionId);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log('[Persistence] Deleted session file:', sessionId);
+    }
+  } catch (error) {
+    console.error('[Persistence] Error deleting session:', error.message);
+  }
+}
+
+// ============================================================================
 // SESSION MANAGER
 // ============================================================================
 
@@ -45,10 +148,16 @@ class ChatSession {
   resetConversation() {
     this.conversationHistory = [];
     this.systemPrompt = null;
+    this.saveToFile();
   }
   
   updateActivity() {
     this.lastActivity = Date.now();
+    this.saveToFile();
+  }
+  
+  saveToFile() {
+    saveSession(this);
   }
 }
 
@@ -590,7 +699,7 @@ Remember:
           }
         ],
         temperature: 0.1,
-        max_tokens: 300
+        max_tokens: 400
       });
 
       const rawResponse = completion.choices[0]?.message?.content || "No response";
@@ -740,14 +849,23 @@ app.post('/comando', async (req, res) => {
     session.updateActivity();
     
     const aiResponse = await chatWithSession(session, prompt);
-    const generatedCommands = extractCommands(aiResponse);
     
-    console.log('[/comando] Generated commands:', generatedCommands);
+    // For educational mode (AI chats), send full conversational response
+    // For connected devices, extract only commands for execution
+    let commandsToSend = aiResponse;
+    if (session.connected) {
+      // Connected to real device - extract only commands
+      commandsToSend = extractCommands(aiResponse);
+      console.log('[/comando] Extracted commands:', commandsToSend);
+    } else {
+      // Educational mode - keep full conversational response
+      console.log('[/comando] Educational response (full):', aiResponse.substring(0, 100) + '...');
+    }
     
     let response = {
       success: true,
-      respuesta: generatedCommands,
-      output: generatedCommands,
+      respuesta: commandsToSend,
+      output: commandsToSend,
       generated: true,
       vendor: session.vendor,
       device_os: session.deviceOS
@@ -761,7 +879,7 @@ app.post('/comando', async (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           connection_id: sessionId,
-          command: generatedCommands
+          command: commandsToSend
         })
       });
       
@@ -774,9 +892,9 @@ app.post('/comando', async (req, res) => {
         response.device_output = execResult.output;
       }
       
-      logCommand(session, prompt, generatedCommands, execResult.success, execResult.output);
+      logCommand(session, prompt, commandsToSend, execResult.success, execResult.output);
     } else {
-      logCommand(session, prompt, generatedCommands, false);
+      logCommand(session, prompt, commandsToSend, false);
     }
     
     res.json(response);
@@ -1137,6 +1255,58 @@ async function detectVendor(sessionId) {
 // DYNAMIC SYSTEM PROMPTS
 // ============================================================================
 function buildSystemPrompt(session, isConnected = true) {
+  
+  // EDUCATIONAL MODE: Conversational AI when not connected
+  if (!isConnected) {
+    return `Eres un ingeniero de redes experimentado que está ayudando a colegas y estudiantes. Respondes como si estuvieras explicando algo en una conversación por chat: directo, claro, sin complicaciones.
+
+TU ESTILO:
+- Vas al grano sin rodeos innecesarios
+- Explicas conceptos complejos de forma simple
+- Usas ejemplos prácticos cuando ayudan
+- Evitas listas largas de viñetas (solo cuando realmente simplifican)
+- Escribes de forma natural, como si charlaras con un colega
+
+CÓMO RESPONDES:
+- Si te piden un comando, lo das y explicas brevemente qué hace
+- Si te preguntan un concepto, lo explicas de forma que cualquiera lo entienda
+- Si algo requiere contexto, preguntas antes de asumir
+- Si hay varias formas de hacer algo, mencionas la más práctica primero
+
+CONOCIMIENTO:
+Manejas Cisco, Juniper y Arista. Tienes experiencia real configurando switches, routers, troubleshooting de red. Conoces CCNA, CCNP y conceptos avanzados.
+
+EJEMPLOS DE TU ESTILO:
+
+User: "Cómo verifico la versión en un switch Cisco?"
+Tú: "El comando es \`show version\`. Te va a dar la versión del IOS, el modelo del equipo, cuánto tiempo lleva encendido y más info del hardware.
+
+Puedes ejecutarlo desde cualquier modo (user o privileged). Si estás en user mode (>) solo tipea \`enable\` primero.
+
+¿Necesitas interpretar alguna parte del output?"
+
+User: "Explícame qué son las VLANs"
+Tú: "Las VLANs son básicamente una forma de dividir un switch físico en múltiples switches lógicos. Cada VLAN es como una red independiente, aunque todo esté en el mismo hardware.
+
+¿Por qué usarlas? Principalmente por seguridad y organización. Puedes separar departamentos, ambientes (producción vs desarrollo), o simplemente reducir el dominio de broadcast.
+
+En Cisco la config básica es así:
+\`\`\`
+configure terminal
+vlan 10
+name Ventas
+exit
+interface GigabitEthernet0/1
+switchport mode access
+switchport access vlan 10
+\`\`\`
+
+Esto crea la VLAN 10 y le asigna un puerto. ¿Quieres saber cómo configurar trunking o routing entre VLANs?"
+
+IMPORTANTE: Responde siempre en español de forma natural, como lo haría un ingeniero latinoamericano. Sin traducción forzada, sin formalismos excesivos.`;
+  }
+  
+  // COMMAND GENERATION MODE: When connected to a real device
   const basePrompt = `You are a network device command generator. Convert natural language requests into exact device commands.
 
 CRITICAL RULES:
@@ -1193,44 +1363,6 @@ SUBNET CALCULATION:
 - Optimal masks same as Cisco`;
   }
 
-  // Educational mode when not connected to a device
-  if (!isConnected) {
-    return basePrompt + `
-
-EDUCATIONAL MODE (No device connected):
-Since you're not connected to a real device, you can be more conversational and helpful:
-
-1. Still provide accurate, executable commands
-2. But you can also explain what they do and why
-3. Help with troubleshooting by suggesting diagnostic commands
-4. Answer networking questions and concepts
-5. Assist with certification prep (CCNA, CCNP, etc.)
-6. Explain best practices and common pitfalls
-
-FORMAT FOR EDUCATIONAL MODE:
-- Provide the commands they asked for
-- Add a brief explanation of what each command does
-- If relevant, suggest related commands or next steps
-- Be friendly and encouraging
-
-EXAMPLE:
-User: "show vlan brief"
-You: "Here's the command for Cisco IOS:
-
-show vlan brief
-
-This command displays a summary of all VLANs configured on the switch, including:
-- VLAN ID and name
-- Status (active/suspended/shutdown)
-- Ports assigned to each VLAN
-
-Related commands you might find useful:
-- show vlan id [number] - Details for a specific VLAN
-- show interfaces switchport - Shows switchport configuration per interface
-
-Would you like me to explain how to configure VLANs or interpret the output?"`;
-  }
-
   return basePrompt;
 }
 
@@ -1240,19 +1372,32 @@ Would you like me to explain how to configure VLANs or interpret the output?"`;
 async function chatWithSession(session, userMessage) {
   console.log('[Chat] User message:', userMessage);
   
+  // Initialize or regenerate system prompt
   if (session.conversationHistory.length === 0) {
+    // New conversation - create system prompt
     session.systemPrompt = buildSystemPrompt(session, session.connected);
     session.conversationHistory.push({
       role: "system",
       content: session.systemPrompt
     });
     console.log('[Chat] System prompt created for vendor:', session.vendor);
+  } else if (!session.connected && session.conversationHistory.length > 0) {
+    // Educational mode chat with existing history - check if prompt needs update
+    const currentSystemPrompt = session.conversationHistory[0].content;
+    if (currentSystemPrompt.includes("Output ONLY executable commands, no explanations")) {
+      // Old command-only prompt detected - regenerate for educational mode
+      console.log('[Chat] Updating to conversational prompt for educational mode');
+      session.systemPrompt = buildSystemPrompt(session, false);
+      session.conversationHistory[0].content = session.systemPrompt;
+      session.saveToFile();
+    }
   }
   
   session.conversationHistory.push({
     role: "user",
     content: userMessage
   });
+  session.saveToFile(); // Save after adding user message
   
   // Single reliable model with retry strategy
   const model = "google/gemini-2.0-flash-lite-001";
@@ -1270,7 +1415,7 @@ async function chatWithSession(session, userMessage) {
         model: model,
         messages: session.conversationHistory,
         temperature: 0.1,
-        max_tokens: 300
+        max_tokens: 800
       });
       
       const aiResponse = completion.choices[0]?.message?.content || "No response";
@@ -1279,6 +1424,7 @@ async function chatWithSession(session, userMessage) {
         role: "assistant",
         content: aiResponse
       });
+      session.saveToFile(); // Save after adding AI response
       
       console.log('[Chat] ✓ Success with model:', model);
       return aiResponse;
@@ -1302,6 +1448,7 @@ async function chatWithSession(session, userMessage) {
         const systemMsg = session.conversationHistory[0];
         const recentMessages = session.conversationHistory.slice(-4);
         session.conversationHistory = [systemMsg, ...recentMessages];
+        session.saveToFile(); // Save after trimming history
         await wait(1000);
         continue;
       }
@@ -1471,22 +1618,30 @@ app.post('/reset-chat', async (req, res) => {
 
 app.get('/session-info', async (req, res) => {
   const sessionId = req.query.session_id || 'default';
+  const includeHistory = req.query.include_history === 'true';
   
   const session = sessions.get(sessionId);
   if (session) {
+    const sessionData = {
+      device_id: session.deviceId,
+      device_hostname: session.deviceHostname,
+      connected: session.connected,
+      connection_type: session.connectionType,
+      vendor: session.vendor,
+      device_os: session.deviceOS,
+      last_prompt: session.lastPrompt,
+      message_count: session.conversationHistory.length,
+      last_activity: session.lastActivity
+    };
+    
+    // Include full conversation history if requested
+    if (includeHistory) {
+      sessionData.conversation_history = session.conversationHistory;
+    }
+    
     res.json({
       success: true,
-      session: {
-        device_id: session.deviceId,
-        device_hostname: session.deviceHostname,
-        connected: session.connected,
-        connection_type: session.connectionType,
-        vendor: session.vendor,
-        device_os: session.deviceOS,
-        last_prompt: session.lastPrompt,
-        message_count: session.conversationHistory.length,
-        last_activity: session.lastActivity
-      }
+      session: sessionData
     });
   } else {
     res.json({
@@ -1527,6 +1682,37 @@ app.get('/devices', async (req, res) => {
     });
   } catch (error) {
     console.error('[/devices] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete session endpoint
+app.delete('/session/:sessionId', async (req, res) => {
+  try {
+    const sessionId = req.params.sessionId;
+    
+    if (!sessions.has(sessionId)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
+    
+    // Remove from memory
+    sessions.delete(sessionId);
+    
+    // Remove from disk
+    deleteSession(sessionId);
+    
+    res.json({
+      success: true,
+      message: 'Session deleted successfully'
+    });
+  } catch (error) {
+    console.error('[DELETE /session] Error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -1674,5 +1860,8 @@ app.post('/apply-template', (req, res) => {
     });
   }
 });
+
+// Load sessions from disk before starting server
+loadSessions();
 
 app.listen(3000, () => console.log('AIConsole Backend - OpenRouter API + Serial Mode - Port 3000'));

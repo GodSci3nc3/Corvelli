@@ -1,0 +1,302 @@
+{
+  "test_date": "2026-03-02T13:52:10.410309",
+  "test_type": "IPAM_REAL_SCENARIOS_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 7,
+  "passed_tests": 6,
+  "partial_tests": 1,
+  "failed_tests": 0,
+  "critical_failures": 1,
+  "avg_score": 0.9639639639639641,
+  "total_weight": 18.5,
+  "weighted_score_sum": 17.833333333333336,
+  "results": [
+    {
+      "test_id": "vague_assign_by_name",
+      "description": "Solicitud vaga: solo nombre de dispositivo con pista de VLAN",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Asigna IP a PC-Ventas-05",
+      "corvelli_response": "Ok, basándonos en la información que me diste, parece que ya tenés todo configurado para que funcione la red.\n\nPara asignar la IP a \"PC-Ventas-05\", que asumo que está en la VLAN 10, tenés que configurarle la IP y la máscara de subred.\n\n**Basado en la salida de `show ip arp`, la red 192.168.10.0/24 está en uso en la VLAN 10.**\n\nEntonces, para \"PC-Ventas-05\", podrías usar una IP libre de ese rango. Por ejemplo, la 192.168.10.6.\n\n**La configuración en la PC sería:**\n\n*   **IP Address:** 192.168.10.6\n*   **Subnet Mask:** 255.255.255.0\n*   **Default Gateway:** 192.168.10.1 (Esta es la IP de la VLAN 10 en el switch, que actúa como gateway para esa red)\n\n**¿Cómo lo hacés en la PC?**\n\nDepende del sistema operativo:\n\n*   **Windows:** Panel de Control -> Centro de redes y recursos compartidos -> Cambiar configuración del adaptador -> Doble clic en la interfaz de red -> Propiedades -> Protocolo de Internet versión 4 (TCP/IPv4) -> Usar la siguiente dirección IP... y ahí ingresás los datos.\n*   **Linux:** Depende de la distribución y el entorno de escritorio, pero generalmente es algo como \"Configuración de red\" o \"Conexiones de red\" en la configuración del sistema.\n\n**Importante:**\n\n*   Asegurate de que la PC esté conectada a un puerto del switch que pertenezca a la VLAN 10 (Gi0/3, Gi0/4, Gi0/5 o Gi0/6, según el `show vlan brief`).\n*   Verificá que la PC pueda hacer ping a la IP del gateway (192.168.10.1) y a otras IPs en la misma red (por ejemplo, 192.168.10.2, 192.168.10.3, etc.) para confirmar la conectividad.\n\n¿Te sirve esta info? ¿Querés que te explique algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 4
+            },
+            {
+              "check": "suggest_ip",
+              "passed": true,
+              "ips": [
+                "192.168.10.0",
+                "192.168.10.6",
+                "192.168.10.6",
+                "192.168.10.1",
+                "192.168.10.1",
+                "192.168.10.2",
+                "192.168.10.3"
+              ]
+            }
+          ],
+          "response_length": 1583
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_multiple_ips",
+      "description": "Solicitud múltiple sin especificar subnet",
+      "critical": true,
+      "weight": 3.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.5,
+      "user_input": "Dame 3 IPs para APs del departamento de IT",
+      "corvelli_response": "Dale, basándonos en la información que me diste, y asumiendo que los APs (Access Points) van a estar en la VLAN de IT (VLAN 20), te puedo dar 3 IPs disponibles.\n\nAquí están:\n\n*   **192.168.20.3**\n*   **192.168.20.4**\n*   **192.168.20.6**\n\n**Explicación:**\n\n*   **`show ip arp`**: Este comando muestra la tabla ARP del switch. La tabla ARP asocia direcciones IP con direcciones MAC.  En el output, veo que ya hay IPs asignadas en la VLAN 20 (192.168.20.1, 192.168.20.2, 192.168.20.5, 192.168.20.10, 192.168.20.15, 192.168.20.20, 192.168.20.25, 192.168.20.30, 192.168.20.35, 192.168.20.50).\n*   **`show vlan brief`**:  Confirma que la VLAN 20 (IT) está activa y tiene asignados los puertos Gi0/7, Gi0/8, Gi0/9.\n*   **`show ip interface brief`**: Muestra las interfaces IP configuradas en el switch.  Vemos que la interfaz Vlan20 tiene la IP 192.168.20.1.  Esta es la IP que el switch usa como gateway para la VLAN 20.\n\n**Consideraciones:**\n\n*   **Rango de IPs:**  Las IPs que te di están dentro del rango de la VLAN 20 (192.168.20.0/24).\n*   **Evitar conflictos:**  Me aseguré de no usar IPs que ya están en uso según la tabla ARP.\n*   **Configuración de los APs:**  Vas a tener que configurar los APs con estas IPs, la máscara de subred (usualmente /24 o 255.255.255.0) y la IP del gateway (192.168.20.1, que es la del switch).\n\n¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "suggest_multiple",
+              "passed": true,
+              "ips": [
+                "192.168.20.3",
+                "192.168.20.4",
+                "192.168.20.6",
+                "192.168.20.1",
+                "192.168.20.2",
+                "192.168.20.5",
+                "192.168.20.10",
+                "192.168.20.15",
+                "192.168.20.20",
+                "192.168.20.25",
+                "192.168.20.30",
+                "192.168.20.35",
+                "192.168.20.50",
+                "192.168.20.1",
+                "192.168.20.0",
+                "192.168.20.1"
+              ]
+            }
+          ],
+          "response_length": 1349
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_question_only",
+      "description": "Pregunta abierta, usuario espera sugerencia",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Qué IP le pongo a la impresora de contabilidad?",
+      "corvelli_response": "Ok, basándonos en la información que me diste, vamos a ver dónde encaja la impresora de contabilidad.\n\nPrimero, revisemos la información clave:\n\n*   **VLANs:** Tenés VLANs separadas para Ventas (10), IT (20) e Invitados (30).\n*   **IPs:**\n    *   VLAN 10 (Ventas): 192.168.10.0/24\n    *   VLAN 20 (IT): 192.168.20.0/24\n    *   VLAN 30 (Invitados): 192.168.30.0/24\n*   **Puertos:**\n    *   Ventas (VLAN 10): Gi0/3, Gi0/4, Gi0/5, Gi0/6\n    *   IT (VLAN 20): Gi0/7, Gi0/8, Gi0/9\n\n**¿Dónde va la impresora?**\n\nLa impresora de contabilidad, por lógica, debería estar en la VLAN de Ventas (10).\n\n**¿Qué IP le asignamos?**\n\nYa tenés IPs asignadas en la 192.168.10.0/24.  Podés elegir una IP libre dentro de ese rango.  Por ejemplo, podrías usar la 192.168.10.200.  Asegurate de que esa IP no esté en uso.\n\n**Resumiendo:**\n\n*   **VLAN:** 10 (Ventas)\n*   **IP:** 192.168.10.200 (o cualquier otra IP libre en ese rango)\n*   **Máscara de subred:** 255.255.255.0 (/24)\n*   **Gateway:** 192.168.10.1 (la IP de la interfaz Vlan10 en el switch)\n\n**Importante:**\n\n*   Configurá la impresora con esta información.\n*   Si la impresora se conecta a un puerto específico del switch, asegurate de que ese puerto esté configurado como \"access\" en la VLAN 10.  Por ejemplo:\n\n```\nconfigure terminal\ninterface GigabitEthernet0/X  (reemplazá X con el número del puerto)\nswitchport mode access\nswitchport access vlan 10\nend\n```\n\n¿Te sirve? ¿Necesitás ayuda con algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "suggest_ip",
+              "passed": true,
+              "ips": [
+                "192.168.10.0",
+                "192.168.20.0",
+                "192.168.30.0",
+                "192.168.10.0",
+                "192.168.10.200",
+                "192.168.10.200",
+                "192.168.10.1"
+              ]
+            }
+          ],
+          "response_length": 1444
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_conflict_check",
+      "description": "Validación simple de IP específica",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.3333333333333333,
+      "user_input": "Este host tiene 192.168.10.25, está bien o hay conflicto?",
+      "corvelli_response": "A ver, analicemos eso.\n\nSegún el `show ip arp`, la IP 192.168.10.25 está en la VLAN 10 y tiene una entrada ARP (Address Resolution Protocol) asociada. Esto significa que el switch conoce la dirección MAC (0050.56c0.123e) de ese host y la ha aprendido. El \"Age\" (2 minutos) indica cuánto tiempo ha pasado desde que el switch vio tráfico de ese host.\n\nPor otro lado, el `show vlan brief` nos dice que la VLAN 10 está activa y tiene los puertos Gi0/3, Gi0/4, Gi0/5 y Gi0/6 asignados.\n\nEl `show ip interface brief` muestra que la interfaz Vlan10 tiene la IP 192.168.10.1 asignada y está \"up\".\n\n**Conclusión:**\n\n*   **No hay conflicto de IP.** La IP 192.168.10.25 está siendo usada por un host en la VLAN 10. El switch tiene la información ARP correcta.\n*   **Todo parece estar funcionando como se espera.** El switch está enrutando el tráfico de la VLAN 10 correctamente.\n\n¿Hay algo más que quieras verificar o alguna otra duda?\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 1,
+              "expected": 4
+            },
+            {
+              "check": "detect_problem",
+              "passed": true
+            }
+          ],
+          "response_length": 925
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_guest_wifi",
+      "description": "Calcular disponibilidad sin especificar VLAN exacta",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Cuántas IPs me quedan libres para WiFi de invitados?",
+      "corvelli_response": "Ok, basándonos en la información que me diste, vamos a ver cuántas IPs te quedan libres para la red de invitados (VLAN30).\n\nPrimero, recordemos que la VLAN30 tiene la IP 192.168.30.1.  Asumo que esa es la IP de la interfaz del switch en la VLAN30, y que el switch actúa como gateway para los invitados.\n\nPara saber cuántas IPs te quedan libres, necesitamos saber la máscara de red que estás usando en la VLAN30.  Como no la veo en los comandos que me diste, voy a asumir la más común: una máscara /24 (255.255.255.0).  Si es otra, me avisas y ajustamos el cálculo.\n\nCon una máscara /24, tienes un total de 256 IPs disponibles en la red 192.168.30.0/24.  Pero hay que descontar algunas:\n\n*   **La IP del gateway:** 192.168.30.1 (la del switch).\n*   **Las IPs de broadcast y red:** 192.168.30.0 y 192.168.30.255 (estas no se usan para hosts).\n\nEso nos deja con 256 - 3 = 253 IPs disponibles para los dispositivos WiFi de tus invitados.\n\n**En resumen: Te quedan 253 IPs libres para la red de invitados.**\n\n¿Te sirve esa info? ¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "calculate_usage",
+              "passed": true
+            }
+          ],
+          "response_length": 1044
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_emergency_assign",
+      "description": "Situación de emergencia, usuario en estrés",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Urgente: necesito IP para servidor temporal",
+      "corvelli_response": "Ok, por lo que veo, tenés un switch Cisco 2960 con varias VLANs configuradas. Ya tenés las VLANs 10, 20, 30 y 99.\n\nSegún el `show ip arp`, veo que tenés IPs en las VLANs 10 y 20. También, el `show ip interface brief` muestra que las interfaces VLAN 10, 20 y 30 tienen IPs configuradas.\n\n**¿Dónde necesitas el servidor temporal?** ¿En qué VLAN?\n\n*   Si es en la VLAN 10, podrías usar una IP libre del rango 192.168.10.0/24.\n*   Si es en la VLAN 20, podrías usar una IP libre del rango 192.168.20.0/24.\n*   Si es en la VLAN 30, podrías usar una IP libre del rango 192.168.30.0/24.\n\n**¿Qué puerto del switch vas a usar para conectar el servidor?** Necesito saberlo para asegurarme de que el puerto esté en la VLAN correcta.\n\nUna vez que me digas en qué VLAN y qué puerto vas a usar, te digo cómo configurarlo.\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "suggest_ip",
+              "passed": true,
+              "ips": [
+                "192.168.10.0",
+                "192.168.20.0",
+                "192.168.30.0"
+              ]
+            }
+          ],
+          "response_length": 807
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_range_question",
+      "description": "Validar rango de IPs, no solo una",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Puedo usar el rango 192.168.10.100-110 sin problemas?",
+      "corvelli_response": "¡Claro que sí! Basándonos en la información que me diste, parece que el rango 192.168.10.100-110 está disponible para usar.\n\nAquí te explico por qué:\n\n*   **`show ip arp`**: Este comando muestra la tabla ARP del switch, que es como una lista de las direcciones IP que el switch conoce y sus correspondientes direcciones MAC. En la salida que me pasaste, veo que la red 192.168.10.0/24 (VLAN 10) está en uso, pero las direcciones IP que están siendo usadas van hasta la 192.168.10.40.\n*   **`show vlan brief`**: Este comando muestra las VLANs configuradas y los puertos asociados. La VLAN 10 (VENTAS) está activa y tiene asignados los puertos Gi0/3 a Gi0/6.\n*   **`show ip interface brief`**: Este comando muestra las interfaces IP configuradas en el switch. La interfaz Vlan10 tiene la IP 192.168.10.1.\n\n**Conclusión:**\n\nComo no veo ninguna dirección IP en el rango 192.168.10.100-110 en la tabla ARP, y la red 192.168.10.0/24 parece estar configurada correctamente, puedes usar ese rango sin problemas.\n\n**Recomendación:**\n\nSiempre es buena práctica verificar que no haya conflictos de IP antes de asignar una nueva dirección. Puedes hacer un ping a las direcciones que quieres usar para asegurarte de que no estén en uso.\n\n¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "analyze_range",
+              "passed": true
+            }
+          ],
+          "response_length": 1246
+        }
+      },
+      "error": null
+    }
+  ]
+}

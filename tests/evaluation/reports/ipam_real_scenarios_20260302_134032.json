@@ -1,0 +1,280 @@
+{
+  "test_date": "2026-03-02T13:40:32.936752",
+  "test_type": "IPAM_REAL_SCENARIOS_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 7,
+  "passed_tests": 5,
+  "partial_tests": 1,
+  "failed_tests": 1,
+  "critical_failures": 1,
+  "avg_score": 0.8468468468468469,
+  "total_weight": 18.5,
+  "weighted_score_sum": 15.666666666666666,
+  "results": [
+    {
+      "test_id": "vague_assign_by_name",
+      "description": "Solicitud vaga: solo nombre de dispositivo con pista de VLAN",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 1.0,
+      "user_input": "Asigna IP a PC-Ventas-05",
+      "corvelli_response": "Dale, ¿qué sistema operativo tiene esa PC? ¿Windows, Linux, macOS? Dime eso y te digo cómo hacerlo paso a paso.\n",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 0,
+              "expected": 4
+            },
+            {
+              "check": "suggest_ip",
+              "passed": false,
+              "reason": "No sugirió IP"
+            }
+          ],
+          "response_length": 112
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_multiple_ips",
+      "description": "Solicitud múltiple sin especificar subnet",
+      "critical": true,
+      "weight": 3.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.5,
+      "user_input": "Dame 3 IPs para APs del departamento de IT",
+      "corvelli_response": "Dale, sin problema. Para los APs del departamento de IT, te sugiero estas tres IPs, considerando una red privada y un rango común:\n\n*   **192.168.1.10**\n*   **192.168.1.11**\n*   **192.168.1.12**\n\n**¿Por qué estas IPs?**\n\n*   **Privadas:** Usamos el rango 192.168.1.0/24, que es un rango privado, ideal para redes internas.\n*   **Fáciles de recordar:** Son IPs consecutivas, lo que facilita la administración y el troubleshooting.\n*   **Fuera del rango DHCP:** Asumimos que el servidor DHCP asigna IPs desde .100 en adelante, así que estas IPs estáticas no van a generar conflictos. Si tu DHCP usa otro rango, ajusta las IPs.\n*   **Flexibilidad:** Dejamos IPs libres antes y después para futuros APs o dispositivos.\n\n**Consideraciones:**\n\n*   **Máscara de subred:** Asegúrate de usar la máscara de subred correcta, que generalmente es 255.255.255.0 (/24).\n*   **Gateway:** Configura el gateway (la IP del router) en cada AP. Normalmente es la .1 de tu red (192.168.1.1).\n*   **DNS:** Configura los servidores DNS (por ejemplo, los de Google: 8.8.8.8 y 8.8.4.4) o los de tu proveedor de internet.\n\n¿Te sirve? ¿Necesitas que te ayude con algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "suggest_multiple",
+              "passed": true,
+              "ips": [
+                "192.168.1.10",
+                "192.168.1.11",
+                "192.168.1.12",
+                "192.168.1.0",
+                "192.168.1.1"
+              ]
+            }
+          ],
+          "response_length": 1145
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_question_only",
+      "description": "Pregunta abierta, usuario espera sugerencia",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.6666666666666665,
+      "user_input": "Qué IP le pongo a la impresora de contabilidad?",
+      "corvelli_response": "¡Buena pregunta! Para saber qué IP ponerle a la impresora, necesitamos un poco más de información. Dime:\n\n1.  **¿Qué tipo de red tienes?** ¿Es una red casera simple, una red de oficina con un router, o algo más complejo?\n2.  **¿Ya tienes un rango de IPs definido?** Por ejemplo, ¿sabes si las computadoras y otros dispositivos de la red usan IPs como 192.168.1.X o 10.0.0.X?\n3.  **¿La impresora tiene una pantalla o alguna forma de configuración?** Esto nos dirá cómo podemos configurar la IP en la impresora.\n\nMientras tanto, te doy algunas recomendaciones generales:\n\n*   **Si tienes un router en tu red:** Lo más común es que el router asigne IPs automáticamente a los dispositivos (DHCP). En este caso, lo ideal es que la impresora también obtenga una IP automáticamente. Puedes buscar en la configuración de la impresora la opción de \"DHCP\" o \"Obtener IP automáticamente\" y habilitarla.\n*   **Si necesitas una IP fija:** Si necesitas que la impresora siempre tenga la misma IP (por ejemplo, para que las computadoras la encuentren siempre), puedes asignarle una IP estática. Para esto, necesitas saber:\n    *   **La IP:** Debe estar dentro del rango de IPs que usa tu red, pero que no esté siendo usada por otro dispositivo.\n    *   **La máscara de subred:** Normalmente es 255.255.255.0.\n    *   **La puerta de enlace predeterminada (gateway):** Esta es la IP de tu router.\n    *   **Los servidores DNS:** También la IP de tu router o las de Google (8.8.8.8 y 8.8.4.4).\n\nUna vez que tengas esta información, puedes configurar la IP estática en la impresora. El proceso varía según el modelo de la impresora, pero generalmente se hace a través de la pantalla de la impresora o de una página web de configuración.\n\n¡Dime los detalles de tu red y te ayudo a configurar la IP correcta!\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "suggest_ip",
+              "passed": false,
+              "reason": "No sugirió IP"
+            }
+          ],
+          "response_length": 1788
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_conflict_check",
+      "description": "Validación simple de IP específica",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Este host tiene 192.168.10.25, está bien o hay conflicto?",
+      "corvelli_response": "¡Hola! Para saber si hay conflicto, necesito un poco más de info. ¿En qué contexto estás viendo esa IP?\n\n*   **¿Es una IP que asignaste tú?** Si la configuraste, deberías saber si es la que querías.\n*   **¿Es una IP que se asignó sola (DHCP)?** Si es así, ¿sabes qué rango de IPs usa tu DHCP server?\n*   **¿Estás viendo la IP en la configuración de un dispositivo de red (router, switch)?**\n\nEn general, una IP como `192.168.10.25` es válida, pero el problema es si ya está en uso en tu red.\n\nPara saber si hay conflicto, lo más rápido es hacer un `ping` desde otro dispositivo en la misma red. Si recibes respuesta, es que esa IP está en uso. Si no recibes respuesta, puede que no haya nadie usando esa IP, o que el firewall esté bloqueando el ping.\n\n¿Puedes darme más detalles para ayudarte mejor?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "detect_problem",
+              "passed": true
+            }
+          ],
+          "response_length": 800
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_guest_wifi",
+      "description": "Calcular disponibilidad sin especificar VLAN exacta",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Cuántas IPs me quedan libres para WiFi de invitados?",
+      "corvelli_response": "¡Buena pregunta! Para saber cuántas IPs te quedan libres para el WiFi de invitados, necesito un poco más de información sobre cómo está configurada tu red. Dime:\n\n1.  **¿Qué rango de IPs usas para el WiFi de invitados?** Por ejemplo, ¿es 192.168.1.0/24, 10.0.0.0/24, o algo diferente? El \"/24\" significa que tienes 256 direcciones disponibles.\n2.  **¿Cómo se asignan las IPs?** ¿Usas DHCP (lo más probable) o asignas IPs estáticas? Si usas DHCP, ¿cuál es el rango que el servidor DHCP está ofreciendo?\n\nUna vez que tenga esa información, puedo calcular cuántas IPs están disponibles.\n\n**Ejemplo:**\n\nSi tu red de invitados usa 192.168.10.0/24 y el DHCP asigna IPs desde 192.168.10.100 hasta 192.168.10.200, entonces tienes 101 IPs disponibles para los invitados (200 - 100 + 1).\n\n¡Espera tu respuesta para ayudarte mejor!\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "calculate_usage",
+              "passed": true
+            }
+          ],
+          "response_length": 821
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_emergency_assign",
+      "description": "Situación de emergencia, usuario en estrés",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Urgente: necesito IP para servidor temporal",
+      "corvelli_response": "¡Dale! Para asignar una IP a un servidor temporal, lo más rápido es que lo hagas manualmente. ¿Ya tienes acceso al sistema operativo del servidor? ¿Qué sistema operativo es?\n\nAsumiendo que es Linux (lo más común), te doy los pasos básicos:\n\n1.  **Identifica la interfaz de red:** Usa el comando `ip addr` o `ifconfig` (si no tienes `ip`, instala `net-tools`). Te mostrará las interfaces (eth0, enp0s3, etc.). Busca la que tiene una dirección IP (si ya tiene) o la que está \"UP\".\n\n2.  **Configura la IP:**\n    *   **Temporalmente (hasta que reinicies):**\n        ```bash\n        sudo ip addr add <IP>/<máscara> dev <interfaz>\n        sudo ip route add default via <puerta_de_enlace>\n        ```\n        Reemplaza `<IP>`, `<máscara>`, `<interfaz>` y `<puerta_de_enlace>` con los valores correctos. Por ejemplo: `sudo ip addr add 192.168.1.100/24 dev eth0` y `sudo ip route add default via 192.168.1.1`.\n    *   **Permanentemente (para que se guarde):** Esto depende de la distribución Linux. Generalmente se edita un archivo de configuración. Por ejemplo, en Debian/Ubuntu, podrías editar `/etc/network/interfaces`:\n        ```\n        sudo nano /etc/network/interfaces\n        ```\n        Agrega o modifica las líneas para tu interfaz:\n        ```\n        auto <interfaz>\n        iface <interfaz> inet static\n            address <IP>\n            netmask <máscara>\n            gateway <puerta_de_enlace>\n            dns-nameservers <servidor_dns>\n        ```\n        Guarda el archivo y reinicia la red con `sudo systemctl restart networking` o reinicia el servidor.\n\n3.  **Verifica la configuración:** Usa `ip addr` o `ifconfig` de nuevo para confirmar que la IP se asignó. Prueba la conectividad con `ping <IP_de_google>` para asegurarte de que tienes salida a Internet.\n\n**Ejemplo completo (Ubuntu):**\n\nSupongamos que tu interfaz es `eth0`, quieres la IP `192.168.1.100`, máscara `/24`, puerta de enlace `192.168.1.1` y DNS `8.8.8.8`:\n\n1.  **Temporalmente:**\n    ```bash\n    sudo ip addr add 192.168.1.100/24 dev eth0\n    sudo ip route add default via 192.168.1.1\n    ```\n2.  **Permanentemente:**\n    ```bash\n    sudo nano /etc/network/interfaces\n    ```\n    Agrega esto al archivo:\n    ```\n    auto eth0\n    iface eth0 inet static\n        address 192.168.1.100\n        netmask 255.255.255.0\n        gateway 192.168.1.1\n        dns-nameservers 8.8.8.8\n    ```\n    Guarda y reinicia la red: `sudo systemctl restart networking`\n\nSi es Windows, el proceso es similar pero con la interfaz gráfica o comandos como `netsh`. Dime qué sistema operativo es y te doy los pasos específicos. ¡Av",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "suggest_ip",
+              "passed": true,
+              "ips": [
+                "192.168.1.100",
+                "192.168.1.1",
+                "192.168.1.100",
+                "192.168.1.1",
+                "192.168.1.100",
+                "192.168.1.1",
+                "192.168.1.100",
+                "192.168.1.1"
+              ]
+            }
+          ],
+          "response_length": 2584
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "vague_range_question",
+      "description": "Validar rango de IPs, no solo una",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Puedo usar el rango 192.168.10.100-110 sin problemas?",
+      "corvelli_response": "¡Claro que sí! El rango 192.168.10.100-110 es perfectamente válido para usar en tu red local.\n\n**¿Por qué no habría problemas?**\n\n*   **Es un rango privado:** 192.168.10.0/24 (que incluye el rango que mencionas) es parte de los rangos de direcciones IP privadas definidos por la IANA. Esto significa que puedes usarlo libremente en tu red interna sin preocuparte por conflictos con direcciones públicas en Internet.\n*   **Suficientes direcciones:** Tienes 11 direcciones disponibles (de .100 a .110), lo cual es más que suficiente para la mayoría de los propósitos, como asignar IPs a computadoras, impresoras, etc.\n*   **No es un rango especial:** No estás usando direcciones reservadas (como la .0 para la red, la .255 para broadcast, o la .1 y .2 para el gateway, aunque esto último depende de tu configuración).\n\n**Consideraciones:**\n\n*   **Planificación:** Asegúrate de tener un plan de direccionamiento IP. Por ejemplo, podrías asignar direcciones estáticas a servidores o dispositivos importantes y usar DHCP para el resto.\n*   **Conflictos:** Aunque es poco probable, asegúrate de que no haya otros dispositivos en tu red que ya estén usando esas direcciones. Puedes verificar esto revisando la configuración de tus dispositivos o usando un escáner de red.\n\nEn resumen, ¡adelante! Usa ese rango sin problemas. Si tienes alguna otra pregunta, no dudes en consultarme.\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "analyze_range",
+              "passed": true
+            }
+          ],
+          "response_length": 1375
+        }
+      },
+      "error": null
+    }
+  ]
+}

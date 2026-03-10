@@ -830,8 +830,19 @@ app.post('/comando', async (req, res) => {
   const prompt = req.body.mensaje;
   const sessionId = req.body.session_id || 'default';
   const executeCommand = req.body.execute || false;
+  const simulateConnection = req.body.simulate_connection || false;
   
   console.log('[/comando] Request:', prompt, 'Session:', sessionId);
+  
+  // SECURITY: Prevent execution of real commands with simulated connection
+  if (simulateConnection && executeCommand) {
+    console.error('[/comando] SECURITY: Cannot execute real commands with simulate_connection=true');
+    return res.status(400).json({
+      success: false,
+      error: 'Cannot execute commands in simulation mode. Set execute=false for testing.',
+      security_violation: true
+    });
+  }
   
   try {
     const session = getOrCreateSession(sessionId);
@@ -843,18 +854,45 @@ app.post('/comando', async (req, res) => {
       session.connected = false;
       session.connectionType = 'AI';
       session.vendor = 'cisco'; // Default for educational mode
+      session.createdAt = new Date().toISOString();
       console.log('[/comando] Created AI chat session:', sessionId);
+      
+      // Save immediately to ensure persistence
+      session.saveToFile();
+    }
+    
+    // SIMULATION MODE: Temporarily enable command generation mode for testing
+    // This only affects prompt generation, not actual device connection
+    const originalConnectedState = session.connected;
+    if (simulateConnection && !session.connected) {
+      console.log('[/comando] ⚠️  SIMULATION MODE: Temporarily enabling command generation');
+      session.connected = true; // Temporarily set to trigger command-only mode
+      
+      // Set vendor for simulation
+      session.vendor = req.body.vendor || 'cisco';
+      session.deviceOS = req.body.device_os || 'IOS';
+      
+      // CRITICAL: Clear conversation history to force prompt regeneration
+      // This ensures we get command-only mode, not conversational mode
+      session.conversationHistory = [];
+      console.log('[/comando] Cleared conversation history for fresh command-only prompt');
     }
     
     session.updateActivity();
     
     const aiResponse = await chatWithSession(session, prompt);
     
+    // Restore original connection state after AI response
+    if (simulateConnection) {
+      session.connected = originalConnectedState;
+      console.log('[/comando] ✓ Simulation complete, restored connection state');
+    }
+    
     // For educational mode (AI chats), send full conversational response
     // For connected devices, extract only commands for execution
     let commandsToSend = aiResponse;
-    if (session.connected) {
-      // Connected to real device - extract only commands
+    if (session.connected || simulateConnection) {
+      // Connected to real device or simulating - extract only commands
       commandsToSend = extractCommands(aiResponse);
       console.log('[/comando] Extracted commands:', commandsToSend);
     } else {
@@ -868,7 +906,8 @@ app.post('/comando', async (req, res) => {
       output: commandsToSend,
       generated: true,
       vendor: session.vendor,
-      device_os: session.deviceOS
+      device_os: session.deviceOS,
+      simulated: simulateConnection || false
     };
     
     if (executeCommand && session.connected) {

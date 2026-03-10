@@ -1,0 +1,206 @@
+{
+  "test_date": "2026-03-02T13:20:53.071514",
+  "test_type": "IPAM_SIMULATION",
+  "total_tests": 10,
+  "passed_tests": 8,
+  "partial_tests": 0,
+  "failed_tests": 2,
+  "critical_failures": 1,
+  "avg_score": 0.8444444444444444,
+  "total_weight": 22.5,
+  "weighted_score_sum": 19.0,
+  "results": [
+    {
+      "test_id": "scan_network",
+      "description": "Escanear red y detectar todas las IPs en uso",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 0.0,
+      "weighted_score": 0.0,
+      "details": {
+        "found_ips": 26,
+        "expected_ips": 25,
+        "match": false
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_vlan10_next",
+      "description": "Sugerir siguiente IP libre en VLAN 10 (192.168.10.0/24)",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "details": {
+        "suggested_ip": "192.168.10.4",
+        "expected_ip": "192.168.10.4",
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_vlan20_next",
+      "description": "Sugerir siguiente IP libre en VLAN 20 (192.168.20.0/24)",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "details": {
+        "suggested_ip": "192.168.20.3",
+        "expected_ip": "192.168.20.3",
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "detect_conflict_existing",
+      "description": "Detectar conflicto al intentar asignar IP existente",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "details": {
+        "test_ip": "192.168.10.10",
+        "has_conflict": true,
+        "expected_conflict": true,
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "detect_no_conflict_free",
+      "description": "No detectar conflicto en IP libre",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "details": {
+        "test_ip": "192.168.10.100",
+        "has_conflict": false,
+        "expected_conflict": false,
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_ip_success",
+      "description": "Asignar IP libre exitosamente",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "details": {
+        "assignment_result": {
+          "success": true,
+          "ip": "192.168.10.50",
+          "device": "PC-Testing",
+          "vlan": 10,
+          "message": "IP 192.168.10.50 asignada a PC-Testing en VLAN 10"
+        },
+        "expected_success": true,
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_ip_conflict",
+      "description": "Rechazar asignación de IP duplicada",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "details": {
+        "assignment_result": {
+          "success": false,
+          "ip": "192.168.10.2",
+          "device": "PC-Duplicate",
+          "vlan": 10,
+          "error": "IP_CONFLICT",
+          "message": "IP 192.168.10.2 ya está en uso"
+        },
+        "expected_success": false,
+        "match": true,
+        "conflict_detected": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "subnet_usage_vlan10",
+      "description": "Calcular uso correcto de subnet VLAN 10",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.0,
+      "weighted_score": 0.0,
+      "details": {
+        "usage": {
+          "subnet": "192.168.10.0/24",
+          "vlan": 10,
+          "name": "VENTAS",
+          "total_hosts": 254,
+          "used": 16,
+          "free": 238,
+          "usage_percent": 6.299212598425196
+        },
+        "expected_used": 15,
+        "expected_total": 254,
+        "match": false
+      },
+      "error": null
+    },
+    {
+      "test_id": "subnet_usage_vlan30",
+      "description": "Calcular uso de subnet vacía (VLAN 30)",
+      "critical": false,
+      "weight": 1.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 1.0,
+      "details": {
+        "usage": {
+          "subnet": "192.168.30.0/24",
+          "vlan": 30,
+          "name": "INVITADOS",
+          "total_hosts": 254,
+          "used": 1,
+          "free": 253,
+          "usage_percent": 0.39370078740157477
+        },
+        "expected_used": 1,
+        "expected_total": 254,
+        "match": true
+      },
+      "error": null
+    },
+    {
+      "test_id": "sequential_assignments",
+      "description": "Asignar múltiples IPs secuenciales sin conflicto",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "details": {
+        "assigned_ips": [
+          "192.168.30.2",
+          "192.168.30.3",
+          "192.168.30.4",
+          "192.168.30.5",
+          "192.168.30.6"
+        ],
+        "expected_count": 5,
+        "actual_count": 5,
+        "sequential": true,
+        "match": true
+      },
+      "error": null
+    }
+  ]
+}

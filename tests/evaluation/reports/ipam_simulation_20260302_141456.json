@@ -1,0 +1,353 @@
+{
+  "test_date": "2026-03-02T14:14:56.118350",
+  "test_type": "IPAM_SIMULATION_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 10,
+  "passed_tests": 1,
+  "partial_tests": 1,
+  "failed_tests": 8,
+  "critical_failures": 5,
+  "avg_score": 0.3731884057971014,
+  "total_weight": 23.0,
+  "weighted_score_sum": 8.583333333333332,
+  "results": [
+    {
+      "test_id": "scan_network_vlan10",
+      "description": "Escanear y listar IPs ocupadas en subnet específica",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 0.0,
+      "weighted_score": 0.0,
+      "user_input": "Muéstrame todas las IPs en uso en la VLAN 10",
+      "corvelli_response": "show ip arp vlan 10",
+      "evaluation": {
+        "score": 0.0,
+        "max_score": 3,
+        "earned_score": 0,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": false
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 1,
+              "expected": 2
+            },
+            {
+              "check": "list_ips",
+              "passed": false,
+              "found": 0,
+              "expected": 10
+            }
+          ],
+          "response_length": 19
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_next_ip_vlan10",
+      "description": "Sugerir siguiente IP disponible en subnet",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Dame la siguiente IP libre en 192.168.10.0/24",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan10\nip address 192.168.10.4 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "suggest_specific_ip",
+              "passed": true,
+              "ip": "192.168.10.4"
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_next_ip_vlan20",
+      "description": "Sugerir IP libre sin especificar subnet exacta",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.6666666666666665,
+      "user_input": "Necesito una IP libre en la VLAN 20",
+      "corvelli_response": "configure terminal\ninterface vlan 20\nip address 192.168.20.6 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 125
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "detect_conflict_192_168_10_10",
+      "description": "Detectar conflicto con IP existente",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 0.25,
+      "weighted_score": 0.75,
+      "user_input": "Puedo usar 192.168.10.10 para un nuevo dispositivo?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan 10\nip address 192.168.10.10 255.255.255.0\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.25,
+        "max_score": 4,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 0,
+              "expected": 2
+            },
+            {
+              "check": "detect_conflict",
+              "passed": false,
+              "expected": true,
+              "indicators": {
+                "conflict": false,
+                "free": false
+              }
+            }
+          ],
+          "response_length": 121
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "no_conflict_192_168_10_100",
+      "description": "Confirmar que IP libre no tiene conflicto",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 0.25,
+      "weighted_score": 0.5,
+      "user_input": "Está libre 192.168.10.100?",
+      "corvelli_response": "enable\nping 192.168.10.100",
+      "evaluation": {
+        "score": 0.25,
+        "max_score": 4,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 0,
+              "expected": 2
+            },
+            {
+              "check": "detect_conflict",
+              "passed": false,
+              "expected": false,
+              "indicators": {
+                "conflict": false,
+                "free": false
+              }
+            }
+          ],
+          "response_length": 26
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_multiple_ips",
+      "description": "Sugerir múltiples IPs secuenciales",
+      "critical": false,
+      "weight": 3.0,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 1.0,
+      "user_input": "Dame 5 IPs consecutivas libres en VLAN 30",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan30\nip address 192.168.30.2 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "suggest_multiple",
+              "passed": false,
+              "found": 1,
+              "expected": 5
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "calculate_usage_vlan10",
+      "description": "Calcular uso de subnet",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.0,
+      "weighted_score": 0.0,
+      "user_input": "Cuántas IPs están ocupadas en la red 192.168.10.0/24?",
+      "corvelli_response": "enable\nshow ip arp",
+      "evaluation": {
+        "score": 0.0,
+        "max_score": 3,
+        "earned_score": 0,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": false
+            },
+            {
+              "check": "report_number",
+              "passed": false
+            }
+          ],
+          "response_length": 18
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "calculate_available_vlan30",
+      "description": "Calcular disponibilidad en subnet casi vacía",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 0.5,
+      "user_input": "Cuántas IPs libres hay en VLAN Invitados?",
+      "corvelli_response": "No puedo responder a esa solicitud. No tengo la capacidad de calcular el número de IPs libres en una VLAN basándome en la información proporcionada. Necesito información sobre el rango de direcciones IP asignado a la VLAN Invitados y el número de direcciones IP ya en uso.",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "report_number",
+              "passed": false
+            }
+          ],
+          "response_length": 272
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "range_check_free",
+      "description": "Validar disponibilidad de rango de IPs",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 0.8333333333333333,
+      "user_input": "El rango 192.168.30.10-20 está libre?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan30\nip address 192.168.30.10 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 0,
+              "expected": 1
+            }
+          ],
+          "response_length": 132
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "range_check_partial_conflict",
+      "description": "Detectar conflictos en rango con IPs ocupadas",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 0.8333333333333333,
+      "user_input": "Puedo usar el rango 192.168.10.1-10?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan10\nip address 192.168.10.1 255.255.255.0\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 0,
+              "expected": 2
+            }
+          ],
+          "response_length": 119
+        }
+      },
+      "error": null
+    }
+  ]
+}

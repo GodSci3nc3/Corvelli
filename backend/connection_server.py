@@ -85,15 +85,40 @@ async def connect(req: ConnectionRequest):
             
         elif req.connection_type == 'serial':
             # Serial Connection
+            print(f"[Serial Debug] Connecting to {req.serial_port} at {req.baudrate} baud")
+            
             ser = serial.Serial(
                 port=req.serial_port,
                 baudrate=req.baudrate,
-                timeout=2
+                timeout=2,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
             )
             
-            # Wait for connection
+            print(f"[Serial Debug] Serial port opened: {ser.is_open}")
+            
+            # Wait for connection to stabilize
             time.sleep(1)
-            ser.read_all()  # Clear buffer
+            
+            # Check if there's any initial data
+            initial_waiting = ser.in_waiting
+            print(f"[Serial Debug] Initial buffer: {initial_waiting} bytes")
+            
+            if initial_waiting > 0:
+                initial_data = ser.read(initial_waiting).decode('utf-8', errors='ignore')
+                print(f"[Serial Debug] Initial data: {repr(initial_data[:100])}")
+            
+            # Send a few newlines to get a prompt
+            ser.write(b'\r\n')
+            time.sleep(0.5)
+            
+            prompt_waiting = ser.in_waiting
+            print(f"[Serial Debug] After newline, buffer: {prompt_waiting} bytes")
+            
+            if prompt_waiting > 0:
+                prompt_data = ser.read(prompt_waiting).decode('utf-8', errors='ignore')
+                print(f"[Serial Debug] Prompt data: {repr(prompt_data[:100])}")
             
             connections[req.connection_id] = {
                 'type': 'serial',
@@ -131,33 +156,133 @@ async def execute(req: ExecuteRequest):
             
             # Send command
             shell.send(req.command + '\n')
-            time.sleep(2)
             
-            # Read output
+            # Read output dynamically
             output = ""
+            max_wait = 10  # Maximum 10 seconds
+            idle_timeout = 0.5  # 500ms of no data = command complete
+            start_time = time.time()
+            last_data_time = start_time
+            
+            while time.time() - start_time < max_wait:
+                if shell.recv_ready():
+                    chunk = shell.recv(4096).decode('utf-8', errors='ignore')
+                    output += chunk
+                    last_data_time = time.time()
+                    
+                    # Get last line to check for interactive prompts
+                    lines = output.strip().split('\n')
+                    last_line = lines[-1] if lines else ""
+                    
+                    # Check for interactive prompts (waiting for user input)
+                    # Examples: "How many bits [512]: ", "[yes/no]: ", "Password: "
+                    if any(last_line.rstrip().endswith(marker) for marker in [':', ']:']) and \
+                       not any(marker in last_line for marker in ['#', '>']):
+                        # Interactive prompt detected - return immediately
+                        print(f"[Interactive] Detected interactive prompt: {repr(last_line[-50:])}")
+                        time.sleep(0.3)  # Small wait to ensure prompt is complete
+                        if not shell.recv_ready():
+                            break
+                    
+                    # Check if we've received a regular prompt (command complete)
+                    if any(marker in output[-100:] for marker in ['#', '>', 'Switch', 'Router']):
+                        # Wait a bit more to ensure nothing else coming
+                        time.sleep(0.2)
+                        if not shell.recv_ready():
+                            break
+                else:
+                    # No data waiting - check if we've been idle long enough
+                    if output and (time.time() - last_data_time) > idle_timeout:
+                        break
+                    time.sleep(0.05)
+            
+            # Read any remaining data
             while shell.recv_ready():
-                chunk = shell.recv(4096).decode('utf-8', errors='ignore')
-                output += chunk
-                time.sleep(0.1)
+                output += shell.recv(4096).decode('utf-8', errors='ignore')
+                time.sleep(0.05)
             
             return {
                 "success": True,
-                "output": clean_output(output)
+                "output": clean_output(output) if output else "No response from device"
             }
             
         elif conn['type'] == 'serial':
             ser = conn['serial']
             
-            # Send command
-            ser.write((req.command + '\r\n').encode())
-            time.sleep(2)
+            print(f"[Serial Debug] Executing command: {req.command}")
+            print(f"[Serial Debug] Buffer before clear: {ser.in_waiting} bytes")
             
-            # Read output
-            output = ser.read_all().decode('utf-8', errors='ignore')
+            # Clear any pending data first
+            ser.reset_input_buffer()
+            
+            # Send command
+            command_bytes = (req.command + '\r\n').encode()
+            print(f"[Serial Debug] Sending: {command_bytes}")
+            ser.write(command_bytes)
+            ser.flush()  # Ensure data is sent
+            
+            # Read output dynamically until we detect prompt
+            output = ""
+            max_wait = 10  # Maximum 10 seconds total
+            idle_timeout = 0.5  # 500ms of no data = command complete
+            start_time = time.time()
+            last_data_time = start_time
+            chunks_received = 0
+            
+            while time.time() - start_time < max_wait:
+                waiting = ser.in_waiting
+                if waiting:
+                    chunk = ser.read(waiting).decode('utf-8', errors='ignore')
+                    output += chunk
+                    chunks_received += 1
+                    last_data_time = time.time()
+                    print(f"[Serial Debug] Chunk {chunks_received}: {len(chunk)} bytes, total: {len(output)} bytes")
+                    
+                    # Get last line to check for interactive prompts
+                    lines = output.strip().split('\n')
+                    last_line = lines[-1] if lines else ""
+                    
+                    # Check for interactive prompts (waiting for user input)
+                    # Examples: "How many bits [512]: ", "[yes/no]: ", "Password: "
+                    if any(last_line.rstrip().endswith(marker) for marker in [':', ']:']) and \
+                       not any(marker in last_line for marker in ['#', '>']):
+                        # Interactive prompt detected - return immediately
+                        print(f"[Serial Debug] Interactive prompt detected: {repr(last_line[-50:])}")
+                        time.sleep(0.3)  # Small wait to ensure prompt is complete
+                        if not ser.in_waiting:
+                            print(f"[Serial Debug] Interactive prompt complete")
+                            break
+                    
+                    # Check if we've received a regular prompt (command complete)
+                    if any(marker in output[-100:] for marker in ['#', '>']):
+                        # Wait a bit more to ensure nothing else coming
+                        time.sleep(0.2)
+                        if not ser.in_waiting:
+                            print(f"[Serial Debug] Prompt detected, command complete")
+                            break
+                else:
+                    # No data waiting - check if we've been idle long enough
+                    elapsed = time.time() - start_time
+                    if output and (time.time() - last_data_time) > idle_timeout:
+                        print(f"[Serial Debug] Idle timeout reached after {elapsed:.2f}s")
+                        break
+                    time.sleep(0.05)
+            
+            # Read any remaining data
+            if ser.in_waiting:
+                remaining = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+                output += remaining
+                print(f"[Serial Debug] Read {len(remaining)} remaining bytes")
+            
+            elapsed_total = time.time() - start_time
+            print(f"[Serial Debug] Total time: {elapsed_total:.2f}s, chunks: {chunks_received}, output length: {len(output)} bytes")
+            
+            if not output:
+                print(f"[Serial Debug] WARNING: No data received from device")
             
             return {
                 "success": True,
-                "output": clean_output(output)
+                "output": clean_output(output) if output else "No response from device"
             }
             
     except Exception as e:

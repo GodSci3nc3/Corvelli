@@ -1,0 +1,393 @@
+{
+  "test_date": "2026-03-02T13:50:03.744483",
+  "test_type": "IPAM_SIMULATION_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 10,
+  "passed_tests": 3,
+  "partial_tests": 6,
+  "failed_tests": 1,
+  "critical_failures": 3,
+  "avg_score": 0.7463768115942028,
+  "total_weight": 23.0,
+  "weighted_score_sum": 17.166666666666664,
+  "results": [
+    {
+      "test_id": "scan_network_vlan10",
+      "description": "Escanear y listar IPs ocupadas en subnet específica",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Muéstrame todas las IPs en uso en la VLAN 10",
+      "corvelli_response": "Dale, con gusto. Basándonos en el output que me pasaste, para ver las IPs en uso en la VLAN 10, podemos usar el comando `show ip arp`.\n\nEl output que me diste ya muestra la información que necesitas.  Fíjate en las líneas que dicen \"Vlan10\" en la columna \"Interface\".  Ahí están todas las IPs que el switch conoce en esa VLAN, junto con sus direcciones MAC.\n\nEn resumen, las IPs en uso en la VLAN 10 son:\n\n*   192.168.10.2\n*   192.168.10.3\n*   192.168.10.5\n*   192.168.10.8\n*   192.168.10.10\n*   192.168.10.11\n*   192.168.10.12\n*   192.168.10.15\n*   192.168.10.20\n*   192.168.10.21\n*   192.168.10.25\n*   192.168.10.30\n*   192.168.10.35\n*   192.168.10.40\n\nLa IP 192.168.10.1 es la dirección IP de la interfaz Vlan10 del switch.\n\n¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "list_ips",
+              "passed": true,
+              "found": 15
+            }
+          ],
+          "response_length": 749
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_next_ip_vlan10",
+      "description": "Sugerir siguiente IP disponible en subnet",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Dame la siguiente IP libre en 192.168.10.0/24",
+      "corvelli_response": "Ok, basándonos en el output de `show ip arp` y la información que me diste, la próxima IP libre en la red 192.168.10.0/24 es la **192.168.10.4**.\n\nEl comando `show ip arp` muestra las direcciones IP que el switch conoce y sus correspondientes direcciones MAC. En la VLAN 10, veo que ya están en uso las IPs: 192.168.10.1, 192.168.10.2, 192.168.10.3, 192.168.10.5, 192.168.10.8, 192.168.10.10, 192.168.10.11, 192.168.10.12, 192.168.10.15, 192.168.10.20, 192.168.10.21, 192.168.10.25, 192.168.10.30, 192.168.10.35 y 192.168.10.40.\n\nAsí que la siguiente disponible es la .4.\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "suggest_specific_ip",
+              "passed": true,
+              "ip": "192.168.10.4"
+            }
+          ],
+          "response_length": 572
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_next_ip_vlan20",
+      "description": "Sugerir IP libre sin especificar subnet exacta",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.6666666666666665,
+      "user_input": "Necesito una IP libre en la VLAN 20",
+      "corvelli_response": "Ok, con la información que me diste, parece que la VLAN 20 está usando la subred 192.168.20.0/24.\n\nPara encontrar una IP libre, podemos ver las IPs que ya están en uso en esa VLAN, y buscar una que no esté en la lista.\n\nDel output de `show ip arp`, vemos que en la VLAN 20 están en uso las siguientes IPs:\n\n*   192.168.20.1\n*   192.168.20.2\n*   192.168.20.5\n*   192.168.20.10\n*   192.168.20.15\n*   192.168.20.20\n*   192.168.20.25\n*   192.168.20.30\n*   192.168.20.35\n*   192.168.20.50\n\nAsí que cualquier IP que no esté en esa lista, dentro del rango 192.168.20.2 - 192.168.20.254, debería estar libre.\n\n**Ejemplos de IPs libres:**\n\n*   192.168.20.3\n*   192.168.20.4\n*   192.168.20.6\n*   192.168.20.7\n*   192.168.20.8\n*   192.168.20.9\n*   192.168.20.11\n*   ... y así sucesivamente.\n\n**Recomendación:**\n\n*   **Evita usar la .1** (ya está en uso como gateway)\n*   **Evita usar IPs muy bajas o muy altas** (podrían estar reservadas para otras cosas).\n\n¿Necesitas ayuda para configurar la IP en un dispositivo? Dime qué necesitas y te ayudo.\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 1036
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "detect_conflict_192_168_10_10",
+      "description": "Detectar conflicto con IP existente",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Puedo usar 192.168.10.10 para un nuevo dispositivo?",
+      "corvelli_response": "Sí, por lo que veo, podrías usar la 192.168.10.10 para un nuevo dispositivo.\n\nAnalizando la información que me diste:\n\n*   **`show ip arp`**: Esta tabla muestra las direcciones IP que el switch conoce y sus correspondientes direcciones MAC. La columna \"Age\" indica cuánto tiempo hace que el switch aprendió esa asociación. Si el \"Age\" es bajo, significa que el dispositivo está activo en la red. En tu output, la 192.168.10.10 tiene un \"Age\" de 12 minutos, lo que sugiere que el dispositivo con esa IP estuvo activo recientemente.\n*   **`show vlan brief`**: Muestra las VLANs configuradas y los puertos asignados a cada una. La VLAN 10 (VENTAS) está activa y tiene varios puertos asignados.\n*   **`show ip interface brief`**: Muestra las interfaces IP configuradas en el switch. Vemos que la interfaz Vlan10 tiene la IP 192.168.10.1.\n\n**Conclusión:**\n\nLa IP 192.168.10.10 está actualmente en uso (o lo estuvo recientemente), pero no hay nada que te impida usarla para un nuevo dispositivo. El switch ya conoce esa IP y la asocia a una MAC.\n\n**Recomendación:**\n\n*   **Verifica la disponibilidad:** Antes de asignar la IP, intenta hacer un ping a 192.168.10.10 para asegurarte de que no haya un dispositivo activo con esa dirección en este momento. Si el ping no responde, es una buena señal.\n*   **Considera la configuración DHCP:** Si estás usando DHCP, asegúrate de que el rango de direcciones no incluya la 192.168.10.10, o configura una reserva para el nuevo dispositivo.\n*   **Documenta:** Siempre documenta la asignación de IPs para evitar conflictos en el futuro.\n\n¿Necesitas ayuda con algo más?\n",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "detect_conflict",
+              "passed": true,
+              "detected": true
+            }
+          ],
+          "response_length": 1602
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "no_conflict_192_168_10_100",
+      "description": "Confirmar que IP libre no tiene conflicto",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 0.75,
+      "weighted_score": 1.5,
+      "user_input": "Está libre 192.168.10.100?",
+      "corvelli_response": "Basado en el output de `show ip arp`, no hay ninguna entrada para la IP 192.168.10.100. Esto sugiere que esa IP no está siendo usada actualmente en la red.\n\nSin embargo, **ojo**:\n\n*   **ARP es dinámico:** La tabla ARP muestra las direcciones IP que el switch *conoce* en ese momento. Si un dispositivo con la IP 192.168.10.100 no ha enviado tráfico recientemente, o no ha sido contactado por el switch, no aparecerá en la tabla ARP.\n*   **Puede haber otros dispositivos:** Puede haber otros dispositivos en la red que no estén directamente conectados al switch (por ejemplo, conectados a otro switch o router).\n\n**Para estar 100% seguro, te recomiendo:**\n\n1.  **Hacer ping a la IP:** Desde una computadora conectada a la misma VLAN (VLAN 10 en este caso), intenta hacer ping a 192.168.10.100. Si no recibes respuesta, es muy probable que esté libre.\n2.  **Verificar la configuración DHCP:** Revisa la configuración del servidor DHCP (si lo hay) para asegurarte de que no esté asignando esa IP.\n\n¿Necesitas ayuda con alguna de estas verificaciones?\n",
+      "evaluation": {
+        "score": 0.75,
+        "max_score": 4,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 1,
+              "expected": 2
+            },
+            {
+              "check": "detect_conflict",
+              "passed": true,
+              "detected": false
+            }
+          ],
+          "response_length": 1048
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "suggest_multiple_ips",
+      "description": "Sugerir múltiples IPs secuenciales",
+      "critical": false,
+      "weight": 3.0,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 2.0,
+      "user_input": "Dame 5 IPs consecutivas libres en VLAN 30",
+      "corvelli_response": "Dale, basándonos en la información que me pasaste, y asumiendo que la VLAN 30 tiene una máscara de subred /24 (255.255.255.0), te puedo dar 5 IPs libres y consecutivas.\n\nLa VLAN 30 tiene la IP 192.168.30.1 asignada al switch.  Por lo general, la primera IP de una subred (.1) se usa para la puerta de enlace (el router o el switch en este caso).\n\nAsí que, aquí tienes 5 IPs libres y consecutivas que puedes usar en la VLAN 30:\n\n*   192.168.30.2\n*   192.168.30.3\n*   192.168.30.4\n*   192.168.30.5\n*   192.168.30.6\n\n**Ojo:** Asegúrate de que no haya otros dispositivos usando esas IPs.  Puedes verificar esto haciendo ping a cada una de ellas antes de asignarlas.  Si no responden al ping, es muy probable que estén libres.\n\n¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "suggest_multiple",
+              "passed": true,
+              "found": 6,
+              "ips": [
+                "192.168.30.1",
+                "192.168.30.2",
+                "192.168.30.3",
+                "192.168.30.4",
+                "192.168.30.5",
+                "192.168.30.6"
+              ]
+            }
+          ],
+          "response_length": 744
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "calculate_usage_vlan10",
+      "description": "Calcular uso de subnet",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.0,
+      "user_input": "Cuántas IPs están ocupadas en la red 192.168.10.0/24?",
+      "corvelli_response": "Según el output de `show ip arp`, en la red 192.168.10.0/24 hay 15 IPs ocupadas.\n\nFíjate en la columna \"Address\" del output de `show ip arp`. Ahí están las IPs que el switch conoce. Todas las que empiezan con 192.168.10. son de la red que te interesa.\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "report_number",
+              "passed": true,
+              "numbers": [
+                "192",
+                "168",
+                "10",
+                "0",
+                "24",
+                "15",
+                "192",
+                "168",
+                "10"
+              ]
+            }
+          ],
+          "response_length": 252
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "calculate_available_vlan30",
+      "description": "Calcular disponibilidad en subnet casi vacía",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.0,
+      "user_input": "Cuántas IPs libres hay en VLAN Invitados?",
+      "corvelli_response": "Ok, basándonos en la información que me diste, vamos a ver cuántas IPs libres hay en la VLAN Invitados (VLAN 30).\n\nPrimero, revisemos la salida de `show ip arp`:\n\n*   **VLAN 30:** No hay ninguna entrada ARP para la VLAN 30 en la salida que me diste. Esto significa que el switch no ha aprendido ninguna dirección IP en esa VLAN.\n\nAhora, veamos la salida de `show ip interface brief`:\n\n*   **Vlan30:** Tiene la IP 192.168.30.1 asignada.\n\n**Conclusión:**\n\n*   El switch tiene la IP 192.168.30.1 asignada a la interfaz VLAN 30.\n*   No hay otras IPs en uso en la VLAN 30 según la tabla ARP.\n\n**Para responder tu pregunta:**\n\nNo podemos saber con certeza cuántas IPs \"libres\" hay en la VLAN Invitados. Lo que sí sabemos es que, en el momento en que se tomó la captura, no había ninguna otra IP en uso aparte de la del switch (192.168.30.1).\n\nPara saber cuántas IPs están disponibles, necesitaríamos saber el rango de IPs que se están usando en la VLAN 30. Por ejemplo, si la red es /24 (máscara 255.255.255.0), el rango sería 192.168.30.1 a 192.168.30.254. En ese caso, habría 253 IPs disponibles (sin contar la del switch).\n\n¿Necesitas que te ayude a calcular el rango de IPs disponibles o algo más?\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "report_number",
+              "passed": true,
+              "numbers": [
+                "30",
+                "30",
+                "30",
+                "192",
+                "168",
+                "30",
+                "1",
+                "192",
+                "168",
+                "30",
+                "1",
+                "30",
+                "30",
+                "192",
+                "168",
+                "30",
+                "1",
+                "30",
+                "24",
+                "255",
+                "255",
+                "255",
+                "0",
+                "192",
+                "168",
+                "30",
+                "1",
+                "192",
+                "168",
+                "30",
+                "254",
+                "253"
+              ]
+            }
+          ],
+          "response_length": 1196
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "range_check_free",
+      "description": "Validar disponibilidad de rango de IPs",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.6666666666666665,
+      "user_input": "El rango 192.168.30.10-20 está libre?",
+      "corvelli_response": "A ver, analicemos eso.\n\nSegún el `show ip arp`, no hay ninguna dirección IP en el rango 192.168.30.10-20 que esté siendo usada. El switch no tiene ninguna interfaz configurada en la VLAN 30, solo la interfaz Vlan30 con la IP 192.168.30.1.\n\nAsí que, **sí, el rango 192.168.30.10-20 está libre**.\n\n¿Necesitas algo más?\n",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 317
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "range_check_partial_conflict",
+      "description": "Detectar conflictos en rango con IPs ocupadas",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.3333333333333333,
+      "weighted_score": 0.8333333333333333,
+      "user_input": "Puedo usar el rango 192.168.10.1-10?",
+      "corvelli_response": "Basándonos en la información que me diste, parece que la red 192.168.10.0/24 (VLAN 10) ya está en uso.\n\n*   **`show ip arp`**: Este comando muestra la tabla ARP del switch, que es como una lista de \"traducciones\" entre direcciones IP y direcciones MAC. Vemos que hay varias IPs en el rango 192.168.10.x (del 2 al 40) que ya están asociadas a direcciones MAC y están en la VLAN 10.\n*   **`show vlan brief`**: Confirma que la VLAN 10 (VENTAS) está activa y tiene asignados los puertos Gi0/3 al Gi0/6.\n*   **`show ip interface brief`**: Muestra las interfaces IP del switch. Vemos que la interfaz Vlan10 tiene la IP 192.168.10.1.\n\n**Conclusión:**\n\n*   **No deberías usar las IPs 192.168.10.1-10** porque ya están en uso o son la IP de la interfaz del switch.\n*   Si necesitas asignar IPs, deberías usar un rango diferente dentro de la VLAN 10, o usar otro rango de red (otra VLAN).\n\n¿Qué necesitas hacer exactamente? ¿Quieres agregar más dispositivos a la VLAN 10? ¿O necesitas crear una nueva red? Dime y te ayudo a configurar lo que necesites.\n",
+      "evaluation": {
+        "score": 0.3333333333333333,
+        "max_score": 3,
+        "earned_score": 1,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": false,
+              "found": 1,
+              "expected": 2
+            }
+          ],
+          "response_length": 1043
+        }
+      },
+      "error": null
+    }
+  ]
+}

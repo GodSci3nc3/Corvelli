@@ -155,7 +155,7 @@ async function connectSSH() {
                 host: credentials.host,
                 username: credentials.username,
                 password: credentials.password,
-                command: 'show version | include Software',
+                command: '\n',  // Just send newline to get prompt
                 useAI: false
             })
         });
@@ -163,11 +163,15 @@ async function connectSSH() {
         const data = await response.json();
         
         if (data.success) {
-            currentHostname = deviceName.value || 'Switch';
+            currentHostname = deviceName.value || credentials.host;
             updatePrompt();
             updateStatus(true, 'Connected via SSH');
             addToTerminal('Connected successfully', 'success');
-            addToTerminal(data.output, 'result');
+            
+            // Show output if received and valid
+            if (data.output && data.output !== 'No response from device') {
+                addToTerminal(data.output, 'result');
+            }
         } else {
             addToTerminal(`Connection failed: ${data.error}`, 'error');
             // Connection failed - go back to device list after 2 seconds
@@ -210,28 +214,26 @@ async function connectSerial() {
             return;
         }
         
-        // Now execute test command
+        // Now get initial prompt
         const response = await fetch(`${BACKEND_URL}/execute`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                command: 'show version | include Software',
+                command: '\n',  // Just send newline to get prompt
                 useAI: false
             })
         });
         
         const data = await response.json();
         
-        if (data.success) {
-            currentHostname = deviceName.value || 'Switch';
-            updatePrompt();
-            updateStatus(true, 'Connected via Serial');
-            addToTerminal('Connected successfully', 'success');
-            if (data.output && typeof data.output === 'string') {
-                addToTerminal(data.output, 'result');
-            }
-        } else {
-            addToTerminal(`Execution failed: ${data.error}`, 'error');
+        currentHostname = deviceName.value || 'Switch';
+        updatePrompt();
+        updateStatus(true, 'Connected via Serial');
+        addToTerminal('Connected successfully', 'success');
+        
+        // Show any output if received (like the prompt)
+        if (data.success && data.output && data.output !== 'No response from device') {
+            addToTerminal(data.output, 'result');
         }
     } catch (error) {
         addToTerminal(`Error: ${error.message}`, 'error');

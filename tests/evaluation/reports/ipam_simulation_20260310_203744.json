@@ -1,0 +1,431 @@
+{
+  "test_date": "2026-03-10T20:37:44.028196",
+  "test_type": "IPAM_SIMULATION_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 10,
+  "passed_tests": 8,
+  "partial_tests": 2,
+  "failed_tests": 0,
+  "critical_failures": 0,
+  "avg_score": 0.9512195121951219,
+  "total_weight": 20.5,
+  "weighted_score_sum": 19.5,
+  "results": [
+    {
+      "test_id": "show_ips_vlan10",
+      "description": "Debe generar comando 'show ip arp' para VLAN 10",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Muéstrame todas las IPs en uso en la VLAN 10",
+      "corvelli_response": "show ip arp | include 192.168.10.",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "show ip arp"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 33
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_next_ip_vlan10",
+      "description": "Debe generar interface vlan 10 + ip address 192.168.10.x",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Dame la siguiente IP libre en 192.168.10.0/24",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan10\nip address 192.168.10.4 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "ip_address_cmd",
+              "passed": true,
+              "ips": [
+                "192.168.10.4"
+              ]
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_ip_vlan20",
+      "description": "Debe generar interface vlan 20 + ip address 192.168.20.x",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Necesito una IP libre en la VLAN 20",
+      "corvelli_response": "configure terminal\ninterface vlan 20\nip address 192.168.20.6 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "ip_address_cmd",
+              "passed": true,
+              "ips": [
+                "192.168.20.6"
+              ]
+            }
+          ],
+          "response_length": 125
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "verify_ip_occupied",
+      "description": "Debe generar comandos para usar o verificar la IP",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Puedo usar 192.168.10.10 para un nuevo dispositivo?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan10\nip address 192.168.10.10 255.255.255.0\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 120
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "verify_ip_free",
+      "description": "Debe generar comandos para verificar o usar la IP",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Está libre 192.168.10.100?",
+      "corvelli_response": "enable\nping 192.168.10.100",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "ping"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 26
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_multiple_ips_vlan30",
+      "description": "Debe generar múltiples ip address en VLAN 30",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 0.8,
+      "weighted_score": 2.0,
+      "user_input": "Dame 5 IPs consecutivas libres en VLAN 30",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan30\nip address 192.168.30.2 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 0.8,
+        "max_score": 5,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "ip_address_cmd",
+              "passed": true,
+              "ips": [
+                "192.168.30.2"
+              ]
+            },
+            {
+              "check": "multiple_ips",
+              "passed": false,
+              "found": 1,
+              "expected": 2
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "show_usage_vlan10",
+      "description": "Debe generar 'show ip arp' para la red",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 1.5,
+      "user_input": "Cuántas IPs están ocupadas en la red 192.168.10.0/24?",
+      "corvelli_response": "enable\nshow ip arp",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "show ip arp"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 18
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "show_available_vlan30",
+      "description": "Debe generar show ip arp, show vlan, o indicar cómo verificar",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 0.6666666666666666,
+      "weighted_score": 1.0,
+      "user_input": "Cuántas IPs libres hay en VLAN Invitados?",
+      "corvelli_response": "No puedo responder a esa pregunta. No tengo la capacidad de calcular el número de direcciones IP libres en una VLAN basándome en la información proporcionada. Necesito información sobre el rango de direcciones IP asignado a la VLAN Invitados y la máscara de subred para poder realizar ese cálculo.",
+      "evaluation": {
+        "score": 0.6666666666666666,
+        "max_score": 3,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": false,
+              "expected_any_of": [
+                "show ip arp",
+                "show vlan",
+                "show",
+                "interface"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 297
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "verify_range_free",
+      "description": "Debe generar comandos para verificar o usar IPs del rango",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "El rango 192.168.30.10-20 está libre?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan30\nip address 192.168.30.10 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 132
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "verify_range_conflict",
+      "description": "Debe generar comandos para verificar o usar IPs del rango",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Puedo usar el rango 192.168.10.1-10?",
+      "corvelli_response": "enable\nconfigure terminal\ninterface vlan10\nip address 192.168.10.1 255.255.255.0\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "interface",
+                "ip address"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    }
+  ]
+}

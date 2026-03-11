@@ -1,0 +1,436 @@
+{
+  "test_date": "2026-03-10T21:03:51.478075",
+  "test_type": "VOIP_SIMULATION_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 10,
+  "passed_tests": 10,
+  "partial_tests": 0,
+  "failed_tests": 0,
+  "critical_failures": 0,
+  "avg_score": 1.0,
+  "total_weight": 22.5,
+  "weighted_score_sum": 22.5,
+  "results": [
+    {
+      "test_id": "assign_voice_vlan_single_port",
+      "description": "Debe generar interface Gi0/1 + configuracion para telefono IP (voice vlan o access vlan)",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Configura el puerto Gi0/1 para telefono IP en VLAN 20",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "switchport access vlan",
+                "interface"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 135
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "assign_voice_vlan_access_mode",
+      "description": "Debe generar interface + switchport access vlan 10 + switchport voice vlan 20",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Asigna Voice VLAN 20 al puerto Gi0/2 con datos en VLAN 10",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/2\nswitchport mode access\nswitchport access vlan 10\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "switchport voice vlan",
+                "switchport access vlan",
+                "interface"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 160
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "create_voice_vlan",
+      "description": "Debe generar vlan 20 + name VOICE",
+      "critical": true,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Crea la VLAN 20 para telefonos IP y llamala VOICE",
+      "corvelli_response": "configure terminal\nvlan 20\nname VOICE\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "vlan 20",
+                "name"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            }
+          ],
+          "response_length": 76
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "bulk_voice_ports",
+      "description": "Debe generar configuracion para multiples puertos con voice vlan 20",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Configura los puertos Gi0/1 al Gi0/8 para telefonos IP en VLAN 20",
+      "corvelli_response": "configure terminal\ninterface range GigabitEthernet0/1-8\nswitchport mode access\nswitchport access vlan 20\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "switchport voice vlan",
+                "interface"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 168
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "enable_qos_trust_cos",
+      "description": "Debe generar mls qos trust cos o mls qos trust dscp",
+      "critical": true,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Habilita QoS en el puerto Gi0/1 para priorizar trafico de voz",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nmls qos trust dscp\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "mls qos trust",
+                "qos"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            },
+            {
+              "check": "qos_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 105
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "enable_qos_global",
+      "description": "Debe generar mls qos (global)",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Activa QoS de forma global en el switch para VoIP",
+      "corvelli_response": "configure terminal\nmls qos\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 4,
+        "earned_score": 4,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "mls qos",
+                "qos"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            },
+            {
+              "check": "qos_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 65
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "enable_portfast",
+      "description": "Debe generar spanning-tree portfast",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 1.5,
+      "user_input": "Activa PortFast en los puertos de telefonos IP para reducir tiempo de convergencia",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/3\nspanning-tree portfast\ninterface GigabitEthernet0/4\nspanning-tree portfast\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "spanning-tree portfast",
+                "portfast"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 161
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "show_voice_vlan_config",
+      "description": "Debe generar show interfaces switchport, show vlan, o configurar voice vlan",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 1.5,
+      "user_input": "Muestra la configuracion de Voice VLAN en todos los puertos",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "switchport voice vlan",
+                "interface"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 111
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "show_cdp_voip",
+      "description": "Debe generar show cdp neighbors o show interfaces switchport",
+      "critical": false,
+      "weight": 1.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 1.5,
+      "user_input": "Muestra que telefonos IP estan conectados al switch",
+      "corvelli_response": "show cdp neighbors detail",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "show cdp",
+                "show cdp neighbors"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            }
+          ],
+          "response_length": 25
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "full_voip_port_config",
+      "description": "Debe generar configuracion completa: access vlan, voice vlan, qos, portfast",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Configura el puerto Gi0/5 completo para telefono Cisco: datos VLAN 10, voz VLAN 20, QoS y PortFast",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/5\nswitchport mode access\nswitchport access vlan 10\nswitchport voice vlan 20\nmls qos trust dscp\nspanning-tree portfast\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 5,
+        "earned_score": 5,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "cisco_command",
+              "passed": true,
+              "found": [
+                "switchport voice vlan",
+                "switchport access vlan",
+                "mls qos trust",
+                "spanning-tree portfast"
+              ]
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            },
+            {
+              "check": "qos_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 202
+        }
+      },
+      "error": null
+    }
+  ]
+}

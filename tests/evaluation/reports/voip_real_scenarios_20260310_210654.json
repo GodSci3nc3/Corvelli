@@ -1,0 +1,256 @@
+{
+  "test_date": "2026-03-10T21:06:54.674792",
+  "test_type": "VOIP_REAL_SCENARIOS_BACKEND",
+  "backend_url": "http://localhost:3000",
+  "total_tests": 7,
+  "passed_tests": 7,
+  "partial_tests": 0,
+  "failed_tests": 0,
+  "critical_failures": 0,
+  "avg_score": 1.0,
+  "total_weight": 19.5,
+  "weighted_score_sum": 19.5,
+  "results": [
+    {
+      "test_id": "phones_not_in_network",
+      "description": "Solicitud vaga -> genera configuracion de puerto para telefono IP",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Los telefonos IP del piso 1 no estan en su VLAN",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 20\nno shutdown\ninterface GigabitEthernet0/2\nswitchport mode access\nswitchport access vlan 20\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 2
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 237
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "isolate_voice_from_data",
+      "description": "Solicitud de aislamiento -> configura access vlan + voice vlan distintas",
+      "critical": true,
+      "weight": 3.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.5,
+      "user_input": "Necesito separar el trafico de voz del de datos en los puertos de escritorio",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 10\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 160
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "configure_management_area_voip",
+      "description": "Solicitud vaga con contexto -> genera vlan + puertos con voice vlan",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Configura el area de gerencia para VoIP, tienen telefonos Cisco",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 20\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 160
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "new_ip_phones_buying",
+      "description": "Consulta abierta -> genera configuracion de puerto con voice vlan",
+      "critical": false,
+      "weight": 2.5,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.5,
+      "user_input": "Van a llegar 20 telefonos IP nuevos, como los configuro en el switch?",
+      "corvelli_response": "configure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 20\nswitchport voice vlan 20\nno shutdown\ninterface GigabitEthernet0/2\nswitchport mode access\nswitchport access vlan 20\nswitchport voice vlan 20\nno shutdown\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 287
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "calls_cutting_out",
+      "description": "Problema de voz -> genera QoS o configuracion de voice vlan",
+      "critical": false,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Las llamadas se cortan, como priorizo el trafico de voz?",
+      "corvelli_response": "configure terminal\ninterface range GigabitEthernet0/1, GigabitEthernet0/2\nmls qos trust dscp\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            },
+            {
+              "check": "qos_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 131
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "check_which_ports_have_phones",
+      "description": "Consulta de estado -> genera show cdp neighbors o show interfaces switchport",
+      "critical": false,
+      "weight": 2.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 2.0,
+      "user_input": "Que puertos del switch tienen telefonos conectados?",
+      "corvelli_response": "show running-config interface GigabitEthernet0/3\nshow running-config interface GigabitEthernet0/4",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 2,
+        "earned_score": 2,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 1
+            }
+          ],
+          "response_length": 97
+        }
+      },
+      "error": null
+    },
+    {
+      "test_id": "urgent_voip_setup",
+      "description": "Solicitud urgente -> genera configuracion rapida de voice vlan en un puerto",
+      "critical": true,
+      "weight": 3.0,
+      "success": true,
+      "score": 1.0,
+      "weighted_score": 3.0,
+      "user_input": "Urgente: necesito que el telefono de recepcion funcione ya",
+      "corvelli_response": "enable\nconfigure terminal\ninterface GigabitEthernet0/1\nswitchport mode access\nswitchport access vlan 20\nswitchport voice vlan 20\nend\ncopy running-config startup-config",
+      "evaluation": {
+        "score": 1.0,
+        "max_score": 3,
+        "earned_score": 3,
+        "details": {
+          "checks": [
+            {
+              "check": "useful_response",
+              "passed": true
+            },
+            {
+              "check": "keywords",
+              "passed": true,
+              "found": 3
+            },
+            {
+              "check": "voice_vlan_cmd",
+              "passed": true
+            }
+          ],
+          "response_length": 167
+        }
+      },
+      "error": null
+    }
+  ]
+}

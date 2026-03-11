@@ -1261,29 +1261,73 @@ async function detectVendor(sessionId) {
     
     const output = result.output.toLowerCase();
     console.log('[Vendor Detection] Analyzing output...');
-    
+
     if (output.includes('cisco') || output.includes('ios')) {
       let os = 'IOS';
-      if (output.includes('ios-xe')) os = 'IOS-XE';
-      else if (output.includes('nx-os')) os = 'NX-OS';
-      
+      if (output.includes('ios xe') || output.includes('ios-xe')) os = 'IOS-XE';
+      else if (output.includes('nx-os') || output.includes('nxos')) os = 'NX-OS';
       console.log('[Vendor Detection] Detected: Cisco', os);
-      return { vendor: 'cisco', os: os };
+      return { vendor: 'cisco', os };
     }
-    
+
     if (output.includes('juniper') || output.includes('junos')) {
       console.log('[Vendor Detection] Detected: Juniper JunOS');
       return { vendor: 'juniper', os: 'JunOS' };
     }
-    
+
     if (output.includes('arista')) {
       console.log('[Vendor Detection] Detected: Arista EOS');
       return { vendor: 'arista', os: 'EOS' };
     }
-    
+
+    if (output.includes('comware') || output.includes('hp') || output.includes('procurve') || output.includes('h3c')) {
+      const os = output.includes('comware') ? 'Comware' : 'ProCurve';
+      console.log('[Vendor Detection] Detected: HP', os);
+      return { vendor: 'hp', os };
+    }
+
+    if (output.includes('huawei') || output.includes('vrp')) {
+      console.log('[Vendor Detection] Detected: Huawei VRP');
+      return { vendor: 'huawei', os: 'VRP' };
+    }
+
+    if (output.includes('mikrotik') || output.includes('routeros')) {
+      console.log('[Vendor Detection] Detected: Mikrotik RouterOS');
+      return { vendor: 'mikrotik', os: 'RouterOS' };
+    }
+
+    // Fallback: try Huawei-specific command
+    console.log('[Vendor Detection] show version inconclusive, trying display version...');
+    try {
+      const hwResponse = await fetch('http://127.0.0.1:5000/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: sessionId, command: 'display version' })
+      });
+      const hwResult = await hwResponse.json();
+      if (hwResult.success) {
+        const hwOutput = hwResult.output.toLowerCase();
+        if (hwOutput.includes('huawei') || hwOutput.includes('vrp')) {
+          console.log('[Vendor Detection] Detected via display version: Huawei VRP');
+          return { vendor: 'huawei', os: 'VRP' };
+        }
+      }
+    } catch (_) { /* ignore fallback error */ }
+
+    // Fallback: infer from prompt format
+    const prompt = session.lastPrompt || '';
+    if (prompt.startsWith('[') && prompt.includes(']')) {
+      console.log('[Vendor Detection] Prompt format [HOST] suggests Huawei');
+      return { vendor: 'huawei', os: 'VRP' };
+    }
+    if (prompt.includes('/')) {
+      console.log('[Vendor Detection] Prompt format with / suggests Mikrotik');
+      return { vendor: 'mikrotik', os: 'RouterOS' };
+    }
+
     console.log('[Vendor Detection] Unknown vendor');
     return { vendor: 'unknown', os: 'unknown' };
-    
+
   } catch (error) {
     console.error('[Vendor Detection] Error:', error);
     return { vendor: 'unknown', os: 'unknown' };
@@ -1346,63 +1390,298 @@ IMPORTANTE: Responde siempre en español de forma natural, como lo haría un ing
   }
   
   // COMMAND GENERATION MODE: When connected to a real device
-  const basePrompt = `You are a network device command generator. Convert natural language requests into exact device commands.
+  const vendorLabel = session.vendor || 'unknown';
+  const osLabel = session.deviceOS || '';
+
+  const basePrompt = `You are a network device command generator. Convert natural language requests into exact ${vendorLabel.toUpperCase()} commands.
 
 CRITICAL RULES:
 1. Output ONLY executable commands, no explanations
-2. Check current device state from prompt
-3. Use proper mode escalation
+2. Check current device state from the prompt shown below
+3. Use proper mode escalation for this vendor
 4. Prefix all commands with "CMD: " for easy extraction
 
 Current device state: ${session.lastPrompt}`;
 
-  if (session.vendor === 'cisco') {
+  // ── CISCO IOS / IOS-XE ────────────────────────────────────────────────────
+  if (session.vendor === 'cisco' && osLabel !== 'NX-OS') {
     return basePrompt + `
 
-CISCO ${session.deviceOS || 'IOS'} SYNTAX:
-- Use "configure terminal" to enter config mode
-- VLAN creation: vlan X + name Y
-- Interface config: interface GigabitEthernet0/1
-- Save config: end + copy running-config startup-config
-- For switches: use "interface vlan X" for IPs
-- For routers: use physical interfaces for IPs
+VENDOR: Cisco ${osLabel || 'IOS'}
 
 MODE DETECTION:
-- If prompt ends with ">" → User mode (need "enable")
-- If prompt ends with "#" without "(config)" → Privileged mode
-- If prompt contains "(config)" → Already in config mode (DON'T add "configure terminal")
+- Prompt ends with ">"         → User mode. Need "enable" before anything.
+- Prompt ends with "#" (no config) → Privileged mode. Need "configure terminal" before config commands.
+- Prompt contains "(config)"   → Config mode. Do NOT add "configure terminal".
 
-SUBNET CALCULATION:
-- When user doesn't specify subnet mask, calculate optimal mask
-- For LANs: prefer /24 (254 hosts)
-- For point-to-point links: use /30 (2 hosts)
-- For server segments: use /27 (30 hosts) or /26 (62 hosts)
-- ALWAYS show subnet mask in dotted decimal (255.255.255.0)
+SYNTAX RULES:
+- Enter config: configure terminal
+- Save: end → copy running-config startup-config
+- VLAN: vlan <id> / name <name>
+- Switch IP: interface vlan <id> / ip address <ip> <mask> / no shutdown
+- Router IP: interface GigabitEthernet0/X / ip address <ip> <mask> / no shutdown
+- Trunk: switchport mode trunk / switchport trunk allowed vlan <list>
+- Access: switchport mode access / switchport access vlan <id>
+- Voice VLAN: switchport voice vlan <id>
+- QoS trust: mls qos trust cos (on interface) / mls qos (global)
+- PortFast: spanning-tree portfast
+- Do NOT use "no switchport" on Layer 2 switches
+
+SUBNET DEFAULTS (when not specified):
+- LAN: /24 → 255.255.255.0
+- Point-to-point: /30 → 255.255.255.252
+- Server segment: /27 → 255.255.255.224
+- Always dotted decimal format
 
 EXAMPLES:
-Request: "configure IP 192.168.1.1 on interface Gi0/1"
-Output:
+State: Switch#  →  Privileged mode
+Request: "create vlan 10 named Sales"
 CMD: configure terminal
-CMD: interface GigabitEthernet0/1
-CMD: ip address 192.168.1.1 255.255.255.0
+CMD: vlan 10
+CMD: name Sales
+
+State: Switch(config)#  →  Already in config
+Request: "assign ip 10.0.0.1 to vlan 1"
+CMD: interface vlan 1
+CMD: ip address 10.0.0.1 255.255.255.0
 CMD: no shutdown`;
   }
 
+  // ── CISCO NX-OS ───────────────────────────────────────────────────────────
+  if (session.vendor === 'cisco' && osLabel === 'NX-OS') {
+    return basePrompt + `
+
+VENDOR: Cisco NX-OS
+
+MODE DETECTION:
+- Prompt ends with ">"         → User mode. Need "enable".
+- Prompt ends with "#" (no config) → Privileged mode. Need "configure terminal".
+- Prompt contains "(config)"   → Config mode.
+
+SYNTAX RULES:
+- VLANs first require: feature vlan
+- VLAN: vlan <id> / name <name>
+- Interface: interface Ethernet1/1 (NX-OS uses Ethernet, not GigabitEthernet)
+- SVI: interface Vlan<id> / ip address <ip>/<prefix>
+- Trunk: switchport mode trunk / switchport trunk allowed vlan <list>
+- Access: switchport mode access / switchport access vlan <id>
+- NX-OS uses /prefix notation (CIDR), not dotted mask, for SVIs
+- Save: copy running-config startup-config
+- Features may need enabling first: feature ospf, feature bgp, feature vpc
+
+EXAMPLES:
+Request: "enable OSPF feature and create process 1"
+CMD: configure terminal
+CMD: feature ospf
+CMD: router ospf 1
+CMD: router-id 1.1.1.1`;
+  }
+
+  // ── JUNIPER JUNOS ─────────────────────────────────────────────────────────
   if (session.vendor === 'juniper') {
     return basePrompt + `
 
-JUNIPER JUNOS SYNTAX:
-- Use "configure" to enter config mode (NOT "configure terminal")
-- VLAN creation: set vlans vlan-name vlan-id X
-- Interface config: set interfaces ge-0/0/1
-- Save config: commit (NOT "copy run start")
+VENDOR: Juniper JunOS
 
-SUBNET CALCULATION:
-- Use CIDR notation: /24, /30, etc.
-- Optimal masks same as Cisco`;
+MODE DETECTION:
+- Prompt ends with ">"   → Operational mode. Cannot configure here.
+- Prompt ends with "#"   → Configuration mode (after "configure" or "configure exclusive").
+
+SYNTAX RULES:
+- Enter config: configure  (NOT "configure terminal")
+- Apply changes: commit
+- Rollback: rollback 0
+- All config uses "set" statements
+- Interfaces: ge-0/0/0, xe-0/0/0, et-0/0/0 (not GigabitEthernet)
+- VLAN: set vlans <name> vlan-id <id>
+- Interface access: set interfaces ge-0/0/1 unit 0 family ethernet-switching interface-mode access
+             then: set interfaces ge-0/0/1 unit 0 family ethernet-switching vlan members <name>
+- Interface trunk: set interfaces ge-0/0/1 unit 0 family ethernet-switching interface-mode trunk
+             then: set interfaces ge-0/0/1 unit 0 family ethernet-switching vlan members [vlan1 vlan2]
+- IP on interface: set interfaces ge-0/0/1 unit 0 family inet address <ip>/<prefix>
+- IP on IRB (SVI equivalent): set interfaces irb unit <vlan-id> family inet address <ip>/<prefix>
+- Save is implicit in commit. No "copy run start".
+- Show running: show configuration
+- Show interfaces: show interfaces terse
+
+SUBNET DEFAULTS (CIDR notation):
+- LAN: /24
+- Point-to-point: /30
+- Server segment: /27
+
+EXAMPLES:
+Request: "create vlan 10 named Sales and assign ge-0/0/1 to it"
+CMD: configure
+CMD: set vlans Sales vlan-id 10
+CMD: set interfaces ge-0/0/1 unit 0 family ethernet-switching interface-mode access
+CMD: set interfaces ge-0/0/1 unit 0 family ethernet-switching vlan members Sales
+CMD: commit`;
   }
 
-  return basePrompt;
+  // ── ARISTA EOS ────────────────────────────────────────────────────────────
+  if (session.vendor === 'arista') {
+    return basePrompt + `
+
+VENDOR: Arista EOS
+
+MODE DETECTION:
+- Prompt ends with ">"                → User mode. Need "enable".
+- Prompt ends with "#" (no config)    → Privileged mode. Need "configure".
+- Prompt contains "(config)"          → Config mode.
+
+SYNTAX RULES:
+- Arista EOS is very similar to Cisco IOS but with some differences:
+- Enter config: configure  (also accepts "configure terminal")
+- Save: write memory  (NOT "copy running-config startup-config", though that works too)
+- VLAN: vlan <id> / name <name>  (same as Cisco)
+- Interface: interface Ethernet1  (Arista uses Ethernet, not GigabitEthernet)
+  Also: interface Management1  for management port
+- SVI: interface Vlan<id> / ip address <ip>/<prefix>  (CIDR preferred)
+- Trunk: switchport mode trunk / switchport trunk allowed vlan <list>
+- Access: switchport mode access / switchport access vlan <id>
+- MLAG: available for port-channel bonding between Arista pairs
+- BGP: router bgp <asn> / neighbor <ip> remote-as <asn>
+- Show: show running-config / show interfaces status / show vlan
+
+SUBNET DEFAULTS (CIDR notation preferred):
+- LAN: /24
+- Point-to-point: /30
+
+EXAMPLES:
+Request: "assign ethernet 1 to vlan 20"
+CMD: configure
+CMD: interface Ethernet1
+CMD: switchport mode access
+CMD: switchport access vlan 20`;
+  }
+
+  // ── HP / H3C (Comware and ProCurve) ──────────────────────────────────────
+  if (session.vendor === 'hp') {
+    if (osLabel === 'Comware') {
+      return basePrompt + `
+
+VENDOR: HP / H3C Comware
+
+MODE DETECTION:
+- Prompt in <brackets>     → User view.
+- Prompt in [brackets]     → System view (equivalent to config mode).
+
+SYNTAX RULES:
+- Enter system view: system-view
+- Return to user view: quit (or Ctrl+Z)
+- Save: save  (then confirm with Y)
+- VLAN: vlan <id> / name <name>
+- Interface: interface GigabitEthernet 1/0/1
+- Access port: port link-type access / port access vlan <id>
+- Trunk port: port link-type trunk / port trunk allow-pass vlan <list>
+- IP on interface: ip address <ip> <mask>
+- IP on VLAN interface: interface Vlan-interface <id> / ip address <ip> <mask>
+- Show: display current-configuration / display vlan / display interface
+
+EXAMPLES:
+Request: "set interface gig 1/0/1 as access on vlan 10"
+CMD: system-view
+CMD: interface GigabitEthernet 1/0/1
+CMD: port link-type access
+CMD: port access vlan 10`;
+    } else {
+      return basePrompt + `
+
+VENDOR: HP ProCurve / Aruba
+
+MODE DETECTION:
+- Prompt ends with ">"  → Operator mode.
+- Prompt ends with "#"  → Manager mode (equivalent to privileged/config).
+
+SYNTAX RULES:
+- Access manager mode: enable (then password if set)
+- Save: write memory
+- VLAN: vlan <id> / name <name>
+- Tagged port (trunk): vlan <id> / tagged <port>
+- Untagged port (access): vlan <id> / untagged <port>
+- Remove from vlan: vlan <id> / no untagged <port>
+- IP on VLAN: vlan <id> / ip address <ip>/<prefix>
+- Show: show running-config / show vlans / show interfaces
+
+EXAMPLES:
+Request: "put port 5 in vlan 20"
+CMD: vlan 20
+CMD: untagged 5`;
+    }
+  }
+
+  // ── HUAWEI VRP ───────────────────────────────────────────────────────────
+  if (session.vendor === 'huawei') {
+    return basePrompt + `
+
+VENDOR: Huawei VRP
+
+MODE DETECTION:
+- Prompt in <HOST>     → User view.
+- Prompt in [HOST]     → System view (after "system-view").
+- Prompt in [HOST-iface] → Interface/VLAN view.
+
+SYNTAX RULES:
+- Enter system view: system-view
+- Return: quit
+- Save: save  (confirm with Y)
+- VLAN: vlan <id> / description <name>
+- Interface: interface GigabitEthernet 0/0/1
+- Access port: port link-type access / port default vlan <id>
+- Trunk port: port link-type trunk / port trunk allow-pass vlan <list>
+- Hybrid port: port link-type hybrid (for voice VLAN scenarios)
+- IP on interface: ip address <ip> <mask>
+- VLANIF (SVI): interface vlanif <id> / ip address <ip> <mask>
+- Show: display current-configuration / display vlan / display interface
+- Huawei does NOT use "show" — always use "display"
+
+EXAMPLES:
+Request: "create vlan 10 and put port Gi0/0/1 as access"
+CMD: system-view
+CMD: vlan 10
+CMD: quit
+CMD: interface GigabitEthernet 0/0/1
+CMD: port link-type access
+CMD: port default vlan 10`;
+  }
+
+  // ── MIKROTIK ROUTEROS ─────────────────────────────────────────────────────
+  if (session.vendor === 'mikrotik') {
+    return basePrompt + `
+
+VENDOR: Mikrotik RouterOS
+
+MODE DETECTION:
+- Mikrotik has no config modes. All commands run from the main prompt.
+- Prompt shows current menu path: [admin@HOST] /ip address>
+
+SYNTAX RULES:
+- No "configure terminal" or "enable" needed
+- Navigation: /ip, /interface, /ip address, /ip route, etc.
+- Add IP: /ip address add address=<ip>/<prefix> interface=<iface>
+- Add route: /ip route add dst-address=0.0.0.0/0 gateway=<gw>
+- VLAN: /interface vlan add vlan-id=<id> interface=<parent> name=<name>
+- Bridge: /interface bridge add name=<br>
+- Bridge port: /interface bridge port add bridge=<br> interface=<iface>
+- Firewall: /ip firewall filter add chain=forward action=accept ...
+- Save: implicit — all changes are saved immediately
+- Show IPs: /ip address print
+- Show interfaces: /interface print
+- Show routes: /ip route print
+
+EXAMPLES:
+Request: "add ip 192.168.10.1/24 to ether1"
+CMD: /ip address add address=192.168.10.1/24 interface=ether1
+
+Request: "create vlan 10 on ether2"
+CMD: /interface vlan add vlan-id=10 interface=ether2 name=vlan10`;
+  }
+
+  // ── FALLBACK ──────────────────────────────────────────────────────────────
+  return basePrompt + `
+
+Vendor not identified. Generate generic network commands based on the request.
+If syntax is ambiguous, prefer Cisco IOS conventions as the most common standard.`;
 }
 
 // ============================================================================
